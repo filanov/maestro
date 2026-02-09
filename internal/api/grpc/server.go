@@ -43,11 +43,11 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Reg
 		return nil, status.Error(codes.Internal, "database error")
 	}
 
-	agent, err := s.db.GetAgent(ctx, req.AgentId)
+	_, err := s.db.GetAgent(ctx, req.AgentId)
 
 	if err == db.ErrNotFound {
 		now := time.Now()
-		agent = &models.Agent{
+		agent := &models.Agent{
 			ID:            req.AgentId,
 			ClusterID:     req.ClusterId,
 			Hostname:      req.Hostname,

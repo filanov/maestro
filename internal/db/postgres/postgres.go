@@ -360,7 +360,7 @@ func (d *DB) DeleteTask(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	deleteQuery := `UPDATE tasks SET deleted_at = NOW() WHERE id = $1`
 	if _, err := tx.ExecContext(ctx, deleteQuery, id); err != nil {
@@ -459,7 +459,7 @@ func (d *DB) ReorderTasks(ctx context.Context, clusterID string, taskIDs []strin
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	for i, taskID := range taskIDs {
 		query := `UPDATE tasks SET "order" = $1 WHERE id = $2 AND cluster_id = $3 AND deleted_at IS NULL`

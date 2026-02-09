@@ -23,11 +23,11 @@ import (
 )
 
 const (
-	MaxOutputSize      = 1024 * 1024
-	DefaultTimeout     = 30 * time.Minute
-	MaxTimeout         = 24 * time.Hour
-	MinTimeout         = 10 * time.Second
-	DebugTimeout       = 5 * time.Minute
+	MaxOutputSize       = 1024 * 1024
+	DefaultTimeout      = 30 * time.Minute
+	MaxTimeout          = 24 * time.Hour
+	MinTimeout          = 10 * time.Second
+	DebugTimeout        = 5 * time.Minute
 	ShutdownGracePeriod = 30 * time.Second
 )
 

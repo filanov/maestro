@@ -1,4 +1,4 @@
-.PHONY: all proto clean build test run-server run-agent migrate-up migrate-down lint fmt fmt-check
+.PHONY: all proto clean build test test-unit test-integration test-coverage run-server run-agent migrate-up migrate-down lint fmt fmt-check
 
 all: proto build lint
 
@@ -16,7 +16,37 @@ build: proto
 	go build -o bin/agent ./cmd/agent
 
 test:
-	go test -v ./...
+	@echo "Running all tests..."
+	@if command -v ginkgo > /dev/null 2>&1; then \
+		ginkgo -r -v --race --randomize-all --randomize-suites --fail-on-pending --cover --trace; \
+	else \
+		go test -v -race ./...; \
+	fi
+
+test-unit:
+	@echo "Running unit tests..."
+	@if command -v ginkgo > /dev/null 2>&1; then \
+		ginkgo -r -v --race --randomize-all --skip-package=internal/db/postgres; \
+	else \
+		go test -v -race $$(go list ./... | grep -v internal/db/postgres); \
+	fi
+
+test-integration:
+	@echo "Running integration tests..."
+	@if [ -z "$(MAESTRO_TEST_DB_URL)" ]; then \
+		echo "MAESTRO_TEST_DB_URL not set, skipping integration tests"; \
+		echo "Set it to run: export MAESTRO_TEST_DB_URL='postgres://user:pass@localhost/maestro_test?sslmode=disable'"; \
+	elif command -v ginkgo > /dev/null 2>&1; then \
+		ginkgo -v --race internal/db/postgres; \
+	else \
+		go test -v -race ./internal/db/postgres; \
+	fi
+
+test-coverage:
+	@echo "Running tests with coverage..."
+	@go test -race -coverprofile=coverage.out ./...
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
 
 lint:
 	@echo "Running go vet..."

@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package maestro.agent.v1;
+
+option go_package = "github.com/filanov/maestro/proto/agent/v1";
+
+service AgentService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc PollTasks(PollTasksRequest) returns (PollTasksResponse);
+  rpc ReportTaskExecution(ReportTaskExecutionRequest) returns (ReportTaskExecutionResponse);
+  rpc PollDebugTasks(PollDebugTasksRequest) returns (PollDebugTasksResponse);
+  rpc ReportDebugTaskExecution(ReportDebugTaskExecutionRequest) returns (ReportDebugTaskExecutionResponse);
+}
+
+message RegisterRequest {
+  string agent_id = 1;
+  string cluster_id = 2;
+  string hostname = 3;
+}
+
+message RegisterResponse {
+  bool reset = 1;
+}
+
+message HeartbeatRequest {
+  string agent_id = 1;
+}
+
+message HeartbeatResponse {
+  bool acknowledged = 1;
+}
+
+message PollTasksRequest {
+  string agent_id = 1;
+}
+
+message PollTasksResponse {
+  repeated Task tasks = 1;
+}
+
+message Task {
+  string id = 1;
+  string name = 2;
+  TaskType type = 3;
+  bool blocking = 4;
+  oneof config {
+    ExecConfig exec = 10;
+  }
+}
+
+message ExecConfig {
+  string command = 1;
+  int32 timeout_seconds = 2;
+  string working_dir = 3;
+}
+
+message ReportTaskExecutionRequest {
+  string agent_id = 1;
+  string task_id = 2;
+  ExecutionStatus status = 3;
+  string output = 4;
+  int32 exit_code = 5;
+  string error = 6;
+}
+
+message ReportTaskExecutionResponse {
+  bool acknowledged = 1;
+}
+
+message PollDebugTasksRequest {
+  string agent_id = 1;
+}
+
+message PollDebugTasksResponse {
+  repeated DebugTask debug_tasks = 1;
+}
+
+message DebugTask {
+  string id = 1;
+  string command = 2;
+  int32 timeout_seconds = 3;
+}
+
+message ReportDebugTaskExecutionRequest {
+  string agent_id = 1;
+  string debug_task_id = 2;
+  ExecutionStatus status = 3;
+  string output = 4;
+  int32 exit_code = 5;
+  string error = 6;
+}
+
+message ReportDebugTaskExecutionResponse {
+  bool acknowledged = 1;
+}
+
+enum TaskType {
+  TASK_TYPE_UNSPECIFIED = 0;
+  TASK_TYPE_EXEC = 1;
+}
+
+enum ExecutionStatus {
+  EXECUTION_STATUS_UNSPECIFIED = 0;
+  EXECUTION_STATUS_RUNNING = 1;
+  EXECUTION_STATUS_SUCCESS = 2;
+  EXECUTION_STATUS_FAILED = 3;
+}

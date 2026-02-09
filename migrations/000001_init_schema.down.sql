@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS debug_tasks;
+DROP TABLE IF EXISTS task_executions;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS agents;
+DROP TABLE IF EXISTS clusters;

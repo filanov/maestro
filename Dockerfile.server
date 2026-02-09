@@ -1,0 +1,42 @@
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apk add --no-cache git make protobuf protobuf-dev
+
+# Install protoc plugins
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Generate proto files and build
+RUN make proto && \
+    CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /bin/server ./cmd/server
+
+# Runtime stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /app
+
+# Copy binary and migrations
+COPY --from=builder /bin/server .
+COPY --from=builder /build/migrations ./migrations
+
+# Run as non-root
+RUN adduser -D -u 1000 maestro && \
+    chown -R maestro:maestro /app
+USER maestro
+
+EXPOSE 9090
+
+ENTRYPOINT ["/app/server"]

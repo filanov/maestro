@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -66,7 +67,7 @@ var _ = Describe("Postgres DB", func() {
 		})
 
 		It("should return ErrNotFound for non-existent cluster", func() {
-			_, err := database.GetCluster(ctx, "non-existent-id")
+			_, err := database.GetCluster(ctx, uuid.New().String())
 			Expect(err).To(Equal(db.ErrNotFound))
 		})
 
@@ -110,7 +111,7 @@ var _ = Describe("Postgres DB", func() {
 
 		It("should create and retrieve an agent", func() {
 			agent := &models.Agent{
-				ID:            "agent-123",
+				ID:            uuid.New().String(),
 				ClusterID:     clusterID,
 				Hostname:      "worker-01",
 				Status:        models.AgentStatusActive,
@@ -130,7 +131,7 @@ var _ = Describe("Postgres DB", func() {
 
 		It("should update agent heartbeat", func() {
 			agent := &models.Agent{
-				ID:            "agent-456",
+				ID:            uuid.New().String(),
 				ClusterID:     clusterID,
 				Hostname:      "worker-02",
 				Status:        models.AgentStatusActive,
@@ -155,8 +156,9 @@ var _ = Describe("Postgres DB", func() {
 			oldTime := time.Now().Add(-10 * time.Minute)
 			recentTime := time.Now().Add(-1 * time.Minute)
 
+			agent1ID := uuid.New().String()
 			agent1 := &models.Agent{
-				ID:            "agent-old",
+				ID:            agent1ID,
 				ClusterID:     clusterID,
 				Hostname:      "worker-old",
 				Status:        models.AgentStatusActive,
@@ -167,7 +169,7 @@ var _ = Describe("Postgres DB", func() {
 			Expect(database.CreateAgent(ctx, agent1)).To(Succeed())
 
 			agent2 := &models.Agent{
-				ID:            "agent-recent",
+				ID:            uuid.New().String(),
 				ClusterID:     clusterID,
 				Hostname:      "worker-recent",
 				Status:        models.AgentStatusActive,
@@ -181,7 +183,7 @@ var _ = Describe("Postgres DB", func() {
 			agents, err := database.FindAgentsWithHeartbeatBefore(ctx, threshold)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(agents).To(HaveLen(1))
-			Expect(agents[0].ID).To(Equal("agent-old"))
+			Expect(agents[0].ID).To(Equal(agent1ID))
 		})
 	})
 
@@ -271,8 +273,9 @@ var _ = Describe("Postgres DB", func() {
 			Expect(database.CreateCluster(ctx, cluster)).To(Succeed())
 			clusterID = cluster.ID
 
+			agentID = uuid.New().String()
 			agent := &models.Agent{
-				ID:            "exec-agent",
+				ID:            agentID,
 				ClusterID:     clusterID,
 				Hostname:      "exec-worker",
 				Status:        models.AgentStatusActive,
@@ -281,7 +284,6 @@ var _ = Describe("Postgres DB", func() {
 				LastResetAt:   time.Now(),
 			}
 			Expect(database.CreateAgent(ctx, agent)).To(Succeed())
-			agentID = agent.ID
 
 			task := &models.Task{
 				ClusterID: clusterID,

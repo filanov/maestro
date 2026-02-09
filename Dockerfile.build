@@ -1,0 +1,30 @@
+# Build container with all development tools
+FROM golang:1.25-alpine
+
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    make \
+    bash \
+    protobuf \
+    protobuf-dev \
+    postgresql-client \
+    ca-certificates \
+    build-base
+
+# Install Go tools
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \
+    go install github.com/onsi/ginkgo/v2/ginkgo@latest && \
+    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
+    go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy go mod files for caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Default command
+CMD ["/bin/bash"]

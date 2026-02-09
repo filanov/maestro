@@ -461,6 +461,15 @@ func (d *DB) ReorderTasks(ctx context.Context, clusterID string, taskIDs []strin
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// First pass: set all orders to high values to avoid constraint violations
+	for i, taskID := range taskIDs {
+		query := `UPDATE tasks SET "order" = $1 WHERE id = $2 AND cluster_id = $3 AND deleted_at IS NULL`
+		if _, err := tx.ExecContext(ctx, query, 1000+i, taskID, clusterID); err != nil {
+			return fmt.Errorf("update task order (temp): %w", err)
+		}
+	}
+
+	// Second pass: set final order values
 	for i, taskID := range taskIDs {
 		query := `UPDATE tasks SET "order" = $1 WHERE id = $2 AND cluster_id = $3 AND deleted_at IS NULL`
 		if _, err := tx.ExecContext(ctx, query, i+1, taskID, clusterID); err != nil {

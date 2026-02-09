@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+bin/
+*.pb.go
+coverage.out
+coverage.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+*.md
+doc/
+
+# CI/CD
+.github/
+
+# Testing
+*_test.go
+
+# Docker
+docker-compose.yml
+Dockerfile*
+.dockerignore

@@ -24,48 +24,105 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-### Building
+**All commands run inside Docker containers for consistency across environments.**
+
+### Quick Start
 ```bash
-# Build both server and agent binaries
+# Get help
+make help
+
+# Build everything (runs in container)
+make all
+
+# Start development environment
+make docker-up
+```
+
+### Building (Containerized)
+```bash
+# Build both server and agent binaries (in container)
 make build
 
-# Build manually
-go build -o bin/server ./cmd/server
-go build -o bin/agent ./cmd/agent
-```
-
-### Protocol Buffers
-```bash
-# Generate Go code from proto files
+# Generate protobuf files (in container)
 make proto
 
-# Clean generated proto files
+# Clean generated files
 make clean
+
+# Build Docker images for deployment
+make docker-build
 ```
 
-### Database Migrations
+### Testing (Containerized)
 ```bash
-# Run migrations up
-export MAESTRO_DB_URL="postgres://user:pass@localhost/maestro?sslmode=disable"
+# Run all tests (unit + integration with PostgreSQL)
+make test
+
+# Run only unit tests (fast, no DB required)
+make test-unit
+
+# Run integration tests (with PostgreSQL)
+make test-integration
+
+# Generate coverage report
+make test-coverage
+```
+
+### Code Quality (Containerized)
+```bash
+# Run all linters
+make lint
+
+# Format code
+make fmt
+
+# Check formatting
+make fmt-check
+```
+
+### Database Operations
+```bash
+# Start PostgreSQL containers
+make docker-up
+
+# Run migrations
 make migrate-up
 
 # Rollback last migration
 make migrate-down
+
+# View database logs
+make docker-logs
 ```
 
 ### Running Services
 ```bash
-# Start PostgreSQL (example using Docker)
-docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=maestro postgres:16
+# Run server (starts postgres, runs migrations, starts server)
+make run-server
 
-# Run server
-export MAESTRO_DB_URL="postgres://maestro:maestro@localhost/maestro?sslmode=disable"
-./bin/server
+# Open shell in build container
+make shell
 
-# Run agent (in another terminal)
-export MAESTRO_SERVICE_HOST=localhost
-export MAESTRO_CLUSTER_ID=<cluster-id>  # Get from creating a cluster
-./bin/agent
+# View running containers
+make docker-ps
+
+# Stop all containers
+make docker-down
+```
+
+### Docker Infrastructure
+```bash
+# Build development container image
+make docker-build-image
+
+# Start all services (postgres, test DB)
+make docker-up
+
+# View logs
+make docker-logs
+
+# Stop services
+make docker-down
 ```
 
 ### Testing

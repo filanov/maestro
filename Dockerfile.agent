@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /build
 
@@ -18,7 +18,9 @@ RUN go mod download
 COPY . .
 
 # Generate proto files and build
-RUN make proto && \
+RUN protoc --go_out=. --go_opt=paths=source_relative \
+    --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+    proto/agent/v1/*.proto && \
     CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /bin/agent ./cmd/agent
 
 # Runtime stage

@@ -8,15 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Module**: `github.com/filanov/maestro`
 - **Go Version**: 1.25.4
-- **Status**: Phase 1 implementation complete
+- **Status**: Phase 2 REST API complete
 
 **Core Technologies:**
 - PostgreSQL (state storage with ACID guarantees)
 - gRPC (agent communication)
+- REST API (management operations)
 - Protocol Buffers (service definitions)
 
 **Key Dependencies:**
 - `google.golang.org/grpc` - gRPC framework
+- `github.com/go-chi/chi/v5` - HTTP router for REST API
 - `github.com/lib/pq` - PostgreSQL driver
 - `github.com/golang-migrate/migrate/v4` - Database migrations
 - `github.com/google/uuid` - UUID generation
@@ -171,11 +173,17 @@ Maestro is a distributed task orchestration system managing up to 9k agents per 
 - `ReportTaskExecution(agent_id, task_id, status, output)` - After each task
 - `PollDebugTasks(agent_id)` - Every 5 seconds
 
-**UI → Service (REST)**:
-- Cluster management (CRUD)
-- Task management (CRUD + reorder)
-- Agent monitoring (list, view, delete)
-- Execution history and status
+**UI → Service (REST API)**:
+- **Clusters**: List, Create, Get, Delete
+- **Agents**: List (by cluster), Get, Delete, List executions
+- **Tasks**: List, Create, Get, Update, Delete, Reorder
+- **Executions**: List (with filtering), Get
+- **Debug Tasks**: Create, Get, List (by agent)
+- **Health**: Health check endpoint
+
+**REST API Base URL**: `http://localhost:8080`
+
+All list endpoints support pagination via `?limit=50&offset=0` query parameters.
 
 ### Core Components
 
@@ -225,20 +233,32 @@ Maestro is a distributed task orchestration system managing up to 9k agents per 
 ### Package Structure
 
 ```
-cmd/server/          - Service entry point
-cmd/agent/           - Agent entry point
-internal/api/grpc/   - gRPC server for agents
-internal/api/rest/   - REST API for UI (not yet implemented)
-internal/models/     - Data models
-internal/db/         - Database interface
-internal/db/postgres/- PostgreSQL implementation
-internal/engine/     - Task scheduler
-internal/monitor/    - Health monitor
-internal/cleaner/    - Cleanup service
-internal/config/     - Configuration management
-proto/agent/v1/      - Protocol buffers
-migrations/          - Database migrations
-api/                 - OpenAPI specs (not yet implemented)
+cmd/server/                - Service entry point
+cmd/agent/                 - Agent entry point
+internal/api/grpc/         - gRPC server for agents
+internal/api/rest/         - REST API for UI/management
+  ├── handlers/            - HTTP request handlers
+  │   ├── clusters.go      - Cluster CRUD endpoints
+  │   ├── agents.go        - Agent management endpoints
+  │   ├── tasks.go         - Task CRUD + reorder endpoints
+  │   ├── executions.go    - Execution listing/viewing
+  │   ├── debug_tasks.go   - Debug task management
+  │   └── health.go        - Health check
+  ├── dto/                 - Data transfer objects
+  ├── middleware/          - HTTP middleware (logging, recovery, CORS)
+  ├── server.go            - REST server setup
+  ├── router.go            - Route definitions
+  └── errors.go            - Error handling utilities
+internal/models/           - Data models
+internal/db/               - Database interface
+internal/db/postgres/      - PostgreSQL implementation
+internal/engine/           - Task scheduler
+internal/monitor/          - Health monitor
+internal/cleaner/          - Cleanup service
+internal/config/           - Configuration management
+proto/agent/v1/            - Protocol buffers
+migrations/                - Database migrations
+api/                       - OpenAPI specs (not yet implemented)
 ```
 
 ### Database Schema
@@ -260,8 +280,8 @@ api/                 - OpenAPI specs (not yet implemented)
 - Go 1.25.4
 - PostgreSQL (ordered tasks, ACID guarantees)
 - gRPC (agent protocol)
-- REST + OpenAPI (UI protocol - not yet implemented)
-- Docker (not yet implemented)
+- REST API with chi router (management operations)
+- Docker (containerized development)
 
 ## Implementation Status
 
@@ -284,12 +304,21 @@ api/                 - OpenAPI specs (not yet implemented)
 - `bin/server` - Maestro orchestration service
 - `bin/agent` - Agent for task execution
 
-### Phase 2 - REST API & Management (TODO)
-- [ ] REST API implementation
+### Phase 2 - REST API & Management ✅ COMPLETED
+- [x] REST API implementation (24 endpoints)
+  - [x] Cluster management (4 endpoints: List, Create, Get, Delete)
+  - [x] Agent management (4 endpoints: List by cluster, Get, Delete, List executions)
+  - [x] Task management (6 endpoints: List, Create, Get, Update, Delete, Reorder)
+  - [x] Execution viewing (3 endpoints: List with filtering, Get, List by agent)
+  - [x] Debug task management (3 endpoints: Create, Get, List by agent)
+  - [x] Health check (1 endpoint)
+  - [x] Request/response logging middleware
+  - [x] Error handling with proper HTTP status codes
+  - [x] Pagination support on all list endpoints
+  - [x] Graceful shutdown alongside gRPC server
 - [ ] OpenAPI documentation
 - [ ] Docker containers (Dockerfile.server, Dockerfile.agent)
 - [ ] Multi-instance deployment support
-- [ ] Integration tests
 
 ### Phase 3 - Observability & Testing (TODO)
 - [ ] Metrics (Prometheus)

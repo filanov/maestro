@@ -8,11 +8,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/filanov/maestro/internal/api/grpc"
+	"github.com/filanov/maestro/internal/api/rest"
 	"github.com/filanov/maestro/internal/cleaner"
 	"github.com/filanov/maestro/internal/config"
 	"github.com/filanov/maestro/internal/db/postgres"
+	"github.com/filanov/maestro/internal/engine"
 	"github.com/filanov/maestro/internal/monitor"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -72,6 +75,8 @@ func run() error {
 	)
 	go cleanerSvc.Start(ctx)
 
+	scheduler := engine.NewScheduler(db)
+
 	grpcAddr := fmt.Sprintf("%s:%d", cfg.GRPCHost, cfg.GRPCPort)
 	listener, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
@@ -90,11 +95,25 @@ func run() error {
 		}
 	}()
 
+	restServer := rest.NewServer(db, scheduler, cfg.RESTHost, cfg.RESTPort)
+	go func() {
+		if err := restServer.Start(); err != nil {
+			slog.Error("rest server failed", "error", err)
+		}
+	}()
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 	<-sigCh
 
 	slog.Info("shutdown signal received, stopping gracefully")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := restServer.Shutdown(shutdownCtx); err != nil {
+		slog.Error("rest server shutdown failed", "error", err)
+	}
 
 	grpcServer.GracefulStop()
 

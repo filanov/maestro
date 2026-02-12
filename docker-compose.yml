@@ -64,10 +64,13 @@ services:
       - MAESTRO_DB_URL=postgres://maestro:maestro@postgres:5432/maestro?sslmode=disable
       - MAESTRO_GRPC_HOST=0.0.0.0
       - MAESTRO_GRPC_PORT=9090
+      - MAESTRO_REST_HOST=0.0.0.0
+      - MAESTRO_REST_PORT=8080
       - MAESTRO_LOG_LEVEL=info
       - MAESTRO_LOG_FORMAT=json
     ports:
       - "9090:9090"
+      - "8080:8080"
     networks:
       - maestro
 

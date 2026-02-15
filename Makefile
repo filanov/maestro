@@ -9,7 +9,7 @@ DOCKER_RUN := $(DOCKER_COMPOSE) run --rm build
 DOCKER_RUN_DB := $(DOCKER_COMPOSE) run --rm -e MAESTRO_TEST_DB_URL=postgres://maestro:maestro@postgres-test:5432/maestro_test?sslmode=disable build
 
 # Default target
-all: docker-build-image build lint
+all: docker-build-image generate build lint
 
 help:
 	@echo "Maestro Build System - All commands run in containers"
@@ -17,6 +17,8 @@ help:
 	@echo "Build Commands:"
 	@echo "  make all                - Build everything (proto, binaries, lint)"
 	@echo "  make proto              - Generate protobuf files"
+	@echo "  make generate-api       - Generate REST API code from OpenAPI spec"
+	@echo "  make generate           - Generate all (proto + REST API)"
 	@echo "  make build              - Build server and agent binaries"
 	@echo "  make clean              - Clean generated files and binaries"
 	@echo ""
@@ -87,9 +89,12 @@ proto:
 
 # REST API code generation from OpenAPI spec
 generate-api:
-	@echo "Generating REST API code from OpenAPI spec (in container)..."
+	@echo "Generating REST API code from OpenAPI spec (in fresh container)..."
 	@mkdir -p internal/api/rest/openapi
-	@$(DOCKER_RUN) sh -c "oapi-codegen -config .oapi-codegen.yaml api/openapi/rest-api.yaml"
+	@docker run --rm -v $(PWD):/workspace -w /workspace golang:1.25-alpine sh -c \
+		"apk add --no-cache git > /dev/null 2>&1 && \
+		go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest > /dev/null 2>&1 && \
+		oapi-codegen -config .oapi-codegen.yaml api/openapi/rest-api.yaml"
 	@echo "Generated: internal/api/rest/openapi/generated.go"
 
 # Generate all (proto + REST API)
@@ -104,12 +109,13 @@ clean:
 	@rm -rf bin/
 	@rm -f coverage.out coverage.html
 
-build: proto
+build:
 	@echo "Building binaries (in container)..."
 	@mkdir -p bin
 	@$(DOCKER_RUN) sh -c "go build -o bin/server ./cmd/server"
 	@$(DOCKER_RUN) sh -c "go build -o bin/agent ./cmd/agent"
 	@echo "Binaries built: bin/server, bin/agent"
+	@echo "Note: If you modified api/openapi/rest-api.yaml, run 'make generate-api' first"
 
 # Test targets
 test: docker-up

@@ -8,7 +8,8 @@ RUN apk add --no-cache git make protobuf protobuf-dev
 
 # Install protoc plugins
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
-    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \
+    go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
 
 # Copy go mod files
 COPY go.mod go.sum ./
@@ -18,8 +19,11 @@ RUN go mod download
 COPY . .
 
 # Generate proto files and build
-RUN protoc --go_out=. --go_opt=paths=source_relative \
+RUN mkdir -p api/openapi && \
+    protoc --go_out=. --go_opt=paths=source_relative \
     --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+    --openapiv2_out=api/openapi \
+    --openapiv2_opt=logtostderr=true,allow_merge=true,merge_file_name=agent \
     api/proto/agent/v1/*.proto && \
     CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /bin/agent ./cmd/agent
 

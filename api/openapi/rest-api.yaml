@@ -137,6 +137,183 @@ paths:
                         items:
                           $ref: '#/components/schemas/Agent'
 
+  /api/v1/agents/{id}:
+    get:
+      tags: [Agents]
+      summary: Get agent by ID
+      operationId: getAgent
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Agents]
+      summary: Delete agent
+      operationId: deleteAgent
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '204':
+          description: Agent deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/agents/{id}/executions:
+    get:
+      tags: [Agents]
+      summary: List executions for an agent
+      operationId: listAgentExecutions
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: List of executions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TaskExecution'
+
+  /api/v1/executions:
+    get:
+      tags: [Executions]
+      summary: List all executions
+      operationId: listExecutions
+      parameters:
+        - name: cluster_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: task_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, success, failed, skipped]
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: List of executions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TaskExecution'
+
+  /api/v1/executions/{id}:
+    get:
+      tags: [Executions]
+      summary: Get execution by ID
+      operationId: getExecution
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          description: Execution details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExecution'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/debug-tasks:
+    post:
+      tags: [Debug Tasks]
+      summary: Create a debug task
+      operationId: createDebugTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDebugTaskRequest'
+      responses:
+        '201':
+          description: Debug task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebugTask'
+
+  /api/v1/debug-tasks/{id}:
+    get:
+      tags: [Debug Tasks]
+      summary: Get debug task by ID
+      operationId: getDebugTask
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          description: Debug task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebugTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/agents/{agentId}/debug-tasks:
+    get:
+      tags: [Debug Tasks]
+      summary: List debug tasks for an agent
+      operationId: listDebugTasksByAgent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: List of debug tasks
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DebugTask'
+
   /api/v1/tasks:
     get:
       tags: [Tasks]
@@ -362,6 +539,8 @@ components:
         - cluster_id
         - hostname
         - status
+        - last_heartbeat
+        - registered_at
 
     Task:
       type: object
@@ -389,6 +568,10 @@ components:
         updated_at:
           type: string
           format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
       required:
         - id
         - cluster_id
@@ -397,6 +580,8 @@ components:
         - order
         - blocking
         - config
+        - created_at
+        - updated_at
 
     TaskConfig:
       type: object
@@ -457,10 +642,95 @@ components:
         - cluster_id
         - task_ids
 
+    TaskExecution:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        task_id:
+          type: string
+          format: uuid
+        agent_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, success, failed, skipped]
+        output:
+          type: string
+        exit_code:
+          type: integer
+          nullable: true
+        error:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - task_id
+        - agent_id
+        - status
+        - started_at
+
+    DebugTask:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        agent_id:
+          type: string
+          format: uuid
+        command:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, success, failed, skipped]
+        output:
+          type: string
+        exit_code:
+          type: integer
+          nullable: true
+        error:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - agent_id
+        - command
+        - status
+        - created_at
+
+    CreateDebugTaskRequest:
+      type: object
+      properties:
+        agent_id:
+          type: string
+          format: uuid
+        command:
+          type: string
+      required:
+        - agent_id
+        - command
+
     ErrorResponse:
       type: object
       properties:
         error:
+          type: string
+        message:
           type: string
       required:
         - error

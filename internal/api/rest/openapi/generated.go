@@ -31,9 +31,36 @@ const (
 	CreateTaskRequestTypeExec CreateTaskRequestType = "exec"
 )
 
+// Defines values for DebugTaskStatus.
+const (
+	DebugTaskStatusFailed  DebugTaskStatus = "failed"
+	DebugTaskStatusPending DebugTaskStatus = "pending"
+	DebugTaskStatusRunning DebugTaskStatus = "running"
+	DebugTaskStatusSkipped DebugTaskStatus = "skipped"
+	DebugTaskStatusSuccess DebugTaskStatus = "success"
+)
+
 // Defines values for TaskType.
 const (
 	TaskTypeExec TaskType = "exec"
+)
+
+// Defines values for TaskExecutionStatus.
+const (
+	TaskExecutionStatusFailed  TaskExecutionStatus = "failed"
+	TaskExecutionStatusPending TaskExecutionStatus = "pending"
+	TaskExecutionStatusRunning TaskExecutionStatus = "running"
+	TaskExecutionStatusSkipped TaskExecutionStatus = "skipped"
+	TaskExecutionStatusSuccess TaskExecutionStatus = "success"
+)
+
+// Defines values for ListExecutionsParamsStatus.
+const (
+	ListExecutionsParamsStatusFailed  ListExecutionsParamsStatus = "failed"
+	ListExecutionsParamsStatusPending ListExecutionsParamsStatus = "pending"
+	ListExecutionsParamsStatusRunning ListExecutionsParamsStatus = "running"
+	ListExecutionsParamsStatusSkipped ListExecutionsParamsStatus = "skipped"
+	ListExecutionsParamsStatusSuccess ListExecutionsParamsStatus = "success"
 )
 
 // Agent defines model for Agent.
@@ -41,8 +68,8 @@ type Agent struct {
 	ClusterId     openapi_types.UUID `json:"cluster_id"`
 	Hostname      string             `json:"hostname"`
 	Id            openapi_types.UUID `json:"id"`
-	LastHeartbeat *time.Time         `json:"last_heartbeat,omitempty"`
-	RegisteredAt  *time.Time         `json:"registered_at,omitempty"`
+	LastHeartbeat time.Time          `json:"last_heartbeat"`
+	RegisteredAt  time.Time          `json:"registered_at"`
 	Status        AgentStatus        `json:"status"`
 }
 
@@ -64,6 +91,12 @@ type CreateClusterRequest struct {
 	Name        string  `json:"name"`
 }
 
+// CreateDebugTaskRequest defines model for CreateDebugTaskRequest.
+type CreateDebugTaskRequest struct {
+	AgentId openapi_types.UUID `json:"agent_id"`
+	Command string             `json:"command"`
+}
+
 // CreateTaskRequest defines model for CreateTaskRequest.
 type CreateTaskRequest struct {
 	Blocking  *bool                 `json:"blocking,omitempty"`
@@ -76,9 +109,26 @@ type CreateTaskRequest struct {
 // CreateTaskRequestType defines model for CreateTaskRequest.Type.
 type CreateTaskRequestType string
 
+// DebugTask defines model for DebugTask.
+type DebugTask struct {
+	AgentId     openapi_types.UUID `json:"agent_id"`
+	Command     string             `json:"command"`
+	CompletedAt *time.Time         `json:"completed_at"`
+	CreatedAt   time.Time          `json:"created_at"`
+	Error       *string            `json:"error,omitempty"`
+	ExitCode    *int               `json:"exit_code"`
+	Id          openapi_types.UUID `json:"id"`
+	Output      *string            `json:"output,omitempty"`
+	Status      DebugTaskStatus    `json:"status"`
+}
+
+// DebugTaskStatus defines model for DebugTask.Status.
+type DebugTaskStatus string
+
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Error   string  `json:"error"`
+	Message *string `json:"message,omitempty"`
 }
 
 // HealthResponse defines model for HealthResponse.
@@ -104,12 +154,13 @@ type Task struct {
 	Blocking  bool               `json:"blocking"`
 	ClusterId openapi_types.UUID `json:"cluster_id"`
 	Config    TaskConfig         `json:"config"`
-	CreatedAt *time.Time         `json:"created_at,omitempty"`
+	CreatedAt time.Time          `json:"created_at"`
+	DeletedAt *time.Time         `json:"deleted_at"`
 	Id        openapi_types.UUID `json:"id"`
 	Name      string             `json:"name"`
 	Order     int                `json:"order"`
 	Type      TaskType           `json:"type"`
-	UpdatedAt *time.Time         `json:"updated_at,omitempty"`
+	UpdatedAt time.Time          `json:"updated_at"`
 }
 
 // TaskType defines model for Task.Type.
@@ -121,6 +172,22 @@ type TaskConfig struct {
 	TimeoutSeconds *int    `json:"timeout_seconds,omitempty"`
 	WorkingDir     *string `json:"working_dir,omitempty"`
 }
+
+// TaskExecution defines model for TaskExecution.
+type TaskExecution struct {
+	AgentId     openapi_types.UUID  `json:"agent_id"`
+	CompletedAt *time.Time          `json:"completed_at"`
+	Error       *string             `json:"error,omitempty"`
+	ExitCode    *int                `json:"exit_code"`
+	Id          openapi_types.UUID  `json:"id"`
+	Output      *string             `json:"output,omitempty"`
+	StartedAt   time.Time           `json:"started_at"`
+	Status      TaskExecutionStatus `json:"status"`
+	TaskId      openapi_types.UUID  `json:"task_id"`
+}
+
+// TaskExecutionStatus defines model for TaskExecution.Status.
+type TaskExecutionStatus string
 
 // UpdateTaskRequest defines model for UpdateTaskRequest.
 type UpdateTaskRequest struct {
@@ -144,6 +211,18 @@ type BadRequest = ErrorResponse
 // NotFound defines model for NotFound.
 type NotFound = ErrorResponse
 
+// ListDebugTasksByAgentParams defines parameters for ListDebugTasksByAgent.
+type ListDebugTasksByAgentParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListAgentExecutionsParams defines parameters for ListAgentExecutions.
+type ListAgentExecutionsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListClustersParams defines parameters for ListClusters.
 type ListClustersParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
@@ -156,6 +235,19 @@ type ListAgentsByClusterParams struct {
 	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListExecutionsParams defines parameters for ListExecutions.
+type ListExecutionsParams struct {
+	ClusterId *openapi_types.UUID         `form:"cluster_id,omitempty" json:"cluster_id,omitempty"`
+	AgentId   *openapi_types.UUID         `form:"agent_id,omitempty" json:"agent_id,omitempty"`
+	TaskId    *openapi_types.UUID         `form:"task_id,omitempty" json:"task_id,omitempty"`
+	Status    *ListExecutionsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Limit     *Limit                      `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset    *Offset                     `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListExecutionsParamsStatus defines parameters for ListExecutions.
+type ListExecutionsParamsStatus string
+
 // ListTasksParams defines parameters for ListTasks.
 type ListTasksParams struct {
 	ClusterId      openapi_types.UUID `form:"cluster_id" json:"cluster_id"`
@@ -166,6 +258,9 @@ type ListTasksParams struct {
 
 // CreateClusterJSONRequestBody defines body for CreateCluster for application/json ContentType.
 type CreateClusterJSONRequestBody = CreateClusterRequest
+
+// CreateDebugTaskJSONRequestBody defines body for CreateDebugTask for application/json ContentType.
+type CreateDebugTaskJSONRequestBody = CreateDebugTaskRequest
 
 // CreateTaskJSONRequestBody defines body for CreateTask for application/json ContentType.
 type CreateTaskJSONRequestBody = CreateTaskRequest
@@ -178,6 +273,18 @@ type UpdateTaskJSONRequestBody = UpdateTaskRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List debug tasks for an agent
+	// (GET /api/v1/agents/{agentId}/debug-tasks)
+	ListDebugTasksByAgent(w http.ResponseWriter, r *http.Request, agentId openapi_types.UUID, params ListDebugTasksByAgentParams)
+	// Delete agent
+	// (DELETE /api/v1/agents/{id})
+	DeleteAgent(w http.ResponseWriter, r *http.Request, id ID)
+	// Get agent by ID
+	// (GET /api/v1/agents/{id})
+	GetAgent(w http.ResponseWriter, r *http.Request, id ID)
+	// List executions for an agent
+	// (GET /api/v1/agents/{id}/executions)
+	ListAgentExecutions(w http.ResponseWriter, r *http.Request, id ID, params ListAgentExecutionsParams)
 	// List all clusters
 	// (GET /api/v1/clusters)
 	ListClusters(w http.ResponseWriter, r *http.Request, params ListClustersParams)
@@ -193,6 +300,18 @@ type ServerInterface interface {
 	// Get cluster by ID
 	// (GET /api/v1/clusters/{id})
 	GetCluster(w http.ResponseWriter, r *http.Request, id ID)
+	// Create a debug task
+	// (POST /api/v1/debug-tasks)
+	CreateDebugTask(w http.ResponseWriter, r *http.Request)
+	// Get debug task by ID
+	// (GET /api/v1/debug-tasks/{id})
+	GetDebugTask(w http.ResponseWriter, r *http.Request, id ID)
+	// List all executions
+	// (GET /api/v1/executions)
+	ListExecutions(w http.ResponseWriter, r *http.Request, params ListExecutionsParams)
+	// Get execution by ID
+	// (GET /api/v1/executions/{id})
+	GetExecution(w http.ResponseWriter, r *http.Request, id ID)
 	// List tasks for a cluster
 	// (GET /api/v1/tasks)
 	ListTasks(w http.ResponseWriter, r *http.Request, params ListTasksParams)
@@ -223,6 +342,30 @@ type ServerInterface interface {
 
 type Unimplemented struct{}
 
+// List debug tasks for an agent
+// (GET /api/v1/agents/{agentId}/debug-tasks)
+func (_ Unimplemented) ListDebugTasksByAgent(w http.ResponseWriter, r *http.Request, agentId openapi_types.UUID, params ListDebugTasksByAgentParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete agent
+// (DELETE /api/v1/agents/{id})
+func (_ Unimplemented) DeleteAgent(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get agent by ID
+// (GET /api/v1/agents/{id})
+func (_ Unimplemented) GetAgent(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List executions for an agent
+// (GET /api/v1/agents/{id}/executions)
+func (_ Unimplemented) ListAgentExecutions(w http.ResponseWriter, r *http.Request, id ID, params ListAgentExecutionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List all clusters
 // (GET /api/v1/clusters)
 func (_ Unimplemented) ListClusters(w http.ResponseWriter, r *http.Request, params ListClustersParams) {
@@ -250,6 +393,30 @@ func (_ Unimplemented) DeleteCluster(w http.ResponseWriter, r *http.Request, id 
 // Get cluster by ID
 // (GET /api/v1/clusters/{id})
 func (_ Unimplemented) GetCluster(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a debug task
+// (POST /api/v1/debug-tasks)
+func (_ Unimplemented) CreateDebugTask(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get debug task by ID
+// (GET /api/v1/debug-tasks/{id})
+func (_ Unimplemented) GetDebugTask(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List all executions
+// (GET /api/v1/executions)
+func (_ Unimplemented) ListExecutions(w http.ResponseWriter, r *http.Request, params ListExecutionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get execution by ID
+// (GET /api/v1/executions/{id})
+func (_ Unimplemented) GetExecution(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -309,6 +476,144 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListDebugTasksByAgent operation middleware
+func (siw *ServerInterfaceWrapper) ListDebugTasksByAgent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentId" -------------
+	var agentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentId", chi.URLParam(r, "agentId"), &agentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDebugTasksByAgentParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDebugTasksByAgent(w, r, agentId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAgent operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAgent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAgent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAgent operation middleware
+func (siw *ServerInterfaceWrapper) GetAgent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAgent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAgentExecutions operation middleware
+func (siw *ServerInterfaceWrapper) ListAgentExecutions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAgentExecutionsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAgentExecutions(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListClusters operation middleware
 func (siw *ServerInterfaceWrapper) ListClusters(w http.ResponseWriter, r *http.Request) {
@@ -444,6 +749,137 @@ func (siw *ServerInterfaceWrapper) GetCluster(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCluster(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDebugTask operation middleware
+func (siw *ServerInterfaceWrapper) CreateDebugTask(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDebugTask(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDebugTask operation middleware
+func (siw *ServerInterfaceWrapper) GetDebugTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDebugTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListExecutions operation middleware
+func (siw *ServerInterfaceWrapper) ListExecutions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListExecutionsParams
+
+	// ------------- Optional query parameter "cluster_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "cluster_id", r.URL.Query(), &params.ClusterId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cluster_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "agent_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "agent_id", r.URL.Query(), &params.AgentId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "task_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "task_id", r.URL.Query(), &params.TaskId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "task_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "status", r.URL.Query(), &params.Status)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListExecutions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetExecution operation middleware
+func (siw *ServerInterfaceWrapper) GetExecution(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetExecution(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -767,6 +1203,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/agents/{agentId}/debug-tasks", wrapper.ListDebugTasksByAgent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/agents/{id}", wrapper.DeleteAgent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/agents/{id}", wrapper.GetAgent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/agents/{id}/executions", wrapper.ListAgentExecutions)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/clusters", wrapper.ListClusters)
 	})
 	r.Group(func(r chi.Router) {
@@ -780,6 +1228,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/clusters/{id}", wrapper.GetCluster)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/debug-tasks", wrapper.CreateDebugTask)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/debug-tasks/{id}", wrapper.GetDebugTask)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/executions", wrapper.ListExecutions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/executions/{id}", wrapper.GetExecution)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/tasks", wrapper.ListTasks)
@@ -812,32 +1272,39 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

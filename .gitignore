@@ -34,3 +34,7 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+# Binaries
+bin/
+server
+agent

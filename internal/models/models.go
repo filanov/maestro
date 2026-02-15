@@ -60,6 +60,7 @@ type TaskExecution struct {
 	ID          string
 	TaskID      string
 	AgentID     string
+	ClusterID   string
 	Status      ExecutionStatus
 	Output      string
 	ExitCode    *int

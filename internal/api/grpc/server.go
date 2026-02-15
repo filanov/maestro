@@ -145,7 +145,8 @@ func (s *Server) PollTasks(ctx context.Context, req *pb.PollTasksRequest) (*pb.P
 }
 
 func (s *Server) ReportTaskExecution(ctx context.Context, req *pb.ReportTaskExecutionRequest) (*pb.ReportTaskExecutionResponse, error) {
-	if _, err := s.db.GetAgent(ctx, req.AgentId); err != nil {
+	agent, err := s.db.GetAgent(ctx, req.AgentId)
+	if err != nil {
 		if err == db.ErrNotFound {
 			return nil, status.Error(codes.NotFound, "agent not found")
 		}
@@ -167,6 +168,7 @@ func (s *Server) ReportTaskExecution(ctx context.Context, req *pb.ReportTaskExec
 	execution := &models.TaskExecution{
 		TaskID:    req.TaskId,
 		AgentID:   req.AgentId,
+		ClusterID: agent.ClusterID,
 		Status:    execStatus,
 		Output:    req.Output,
 		StartedAt: time.Now(),

@@ -501,8 +501,8 @@ func (d *DB) CreateExecution(ctx context.Context, execution *models.TaskExecutio
 
 func (d *DB) UpsertExecution(ctx context.Context, execution *models.TaskExecution) error {
 	query := `
-		INSERT INTO task_executions (id, task_id, agent_id, status, output, exit_code, started_at, completed_at, error)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO task_executions (id, task_id, agent_id, cluster_id, status, output, exit_code, started_at, completed_at, error)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (agent_id, task_id)
 		DO UPDATE SET
 			status = EXCLUDED.status,
@@ -515,7 +515,7 @@ func (d *DB) UpsertExecution(ctx context.Context, execution *models.TaskExecutio
 		execution.ID = uuid.New().String()
 	}
 	_, err := d.conn.ExecContext(ctx, query,
-		execution.ID, execution.TaskID, execution.AgentID, execution.Status,
+		execution.ID, execution.TaskID, execution.AgentID, execution.ClusterID, execution.Status,
 		execution.Output, execution.ExitCode, execution.StartedAt, execution.CompletedAt, execution.Error,
 	)
 	if err != nil {
@@ -526,13 +526,13 @@ func (d *DB) UpsertExecution(ctx context.Context, execution *models.TaskExecutio
 
 func (d *DB) GetExecution(ctx context.Context, id string) (*models.TaskExecution, error) {
 	query := `
-		SELECT id, task_id, agent_id, status, output, exit_code, started_at, completed_at, error
+		SELECT id, task_id, agent_id, cluster_id, status, output, exit_code, started_at, completed_at, error
 		FROM task_executions
 		WHERE id = $1
 	`
 	execution := &models.TaskExecution{}
 	err := d.conn.QueryRowContext(ctx, query, id).Scan(
-		&execution.ID, &execution.TaskID, &execution.AgentID, &execution.Status,
+		&execution.ID, &execution.TaskID, &execution.AgentID, &execution.ClusterID, &execution.Status,
 		&execution.Output, &execution.ExitCode, &execution.StartedAt, &execution.CompletedAt, &execution.Error,
 	)
 	if err == sql.ErrNoRows {
@@ -547,13 +547,19 @@ func (d *DB) GetExecution(ctx context.Context, id string) (*models.TaskExecution
 func (d *DB) ListExecutions(ctx context.Context, filters db.ExecutionFilters, limit, offset int) ([]*models.TaskExecution, int, error) {
 	countQuery := `SELECT COUNT(*) FROM task_executions WHERE 1=1`
 	query := `
-		SELECT id, task_id, agent_id, status, output, exit_code, started_at, completed_at, error
+		SELECT id, task_id, agent_id, cluster_id, status, output, exit_code, started_at, completed_at, error
 		FROM task_executions
 		WHERE 1=1
 	`
 	args := []interface{}{}
 	argIdx := 1
 
+	if filters.ClusterID != nil {
+		countQuery += fmt.Sprintf(` AND cluster_id = $%d`, argIdx)
+		query += fmt.Sprintf(` AND cluster_id = $%d`, argIdx)
+		args = append(args, *filters.ClusterID)
+		argIdx++
+	}
 	if filters.AgentID != nil {
 		countQuery += fmt.Sprintf(` AND agent_id = $%d`, argIdx)
 		query += fmt.Sprintf(` AND agent_id = $%d`, argIdx)
@@ -590,7 +596,7 @@ func (d *DB) ListExecutions(ctx context.Context, filters db.ExecutionFilters, li
 	executions := make([]*models.TaskExecution, 0)
 	for rows.Next() {
 		execution := &models.TaskExecution{}
-		if err := rows.Scan(&execution.ID, &execution.TaskID, &execution.AgentID, &execution.Status,
+		if err := rows.Scan(&execution.ID, &execution.TaskID, &execution.AgentID, &execution.ClusterID, &execution.Status,
 			&execution.Output, &execution.ExitCode, &execution.StartedAt, &execution.CompletedAt, &execution.Error); err != nil {
 			return nil, 0, fmt.Errorf("scan execution: %w", err)
 		}
@@ -601,7 +607,7 @@ func (d *DB) ListExecutions(ctx context.Context, filters db.ExecutionFilters, li
 
 func (d *DB) GetExecutionsForAgent(ctx context.Context, agentID string) ([]*models.TaskExecution, error) {
 	query := `
-		SELECT id, task_id, agent_id, status, output, exit_code, started_at, completed_at, error
+		SELECT id, task_id, agent_id, cluster_id, status, output, exit_code, started_at, completed_at, error
 		FROM task_executions
 		WHERE agent_id = $1
 	`
@@ -614,7 +620,7 @@ func (d *DB) GetExecutionsForAgent(ctx context.Context, agentID string) ([]*mode
 	executions := make([]*models.TaskExecution, 0)
 	for rows.Next() {
 		execution := &models.TaskExecution{}
-		if err := rows.Scan(&execution.ID, &execution.TaskID, &execution.AgentID, &execution.Status,
+		if err := rows.Scan(&execution.ID, &execution.TaskID, &execution.AgentID, &execution.ClusterID, &execution.Status,
 			&execution.Output, &execution.ExitCode, &execution.StartedAt, &execution.CompletedAt, &execution.Error); err != nil {
 			return nil, fmt.Errorf("scan execution: %w", err)
 		}

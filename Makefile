@@ -77,14 +77,30 @@ docker-ps:
 # Proto generation
 proto:
 	@echo "Generating protobuf files (in container)..."
+	@mkdir -p api/openapi
 	@$(DOCKER_RUN) sh -c "protoc --go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		--openapiv2_out=api/openapi \
+		--openapiv2_opt=logtostderr=true,allow_merge=true,merge_file_name=agent \
 		api/proto/agent/v1/agent.proto"
+	@echo "Generated swagger file: api/openapi/agent.swagger.json"
+
+# REST API code generation from OpenAPI spec
+generate-api:
+	@echo "Generating REST API code from OpenAPI spec (in container)..."
+	@mkdir -p internal/api/rest/openapi
+	@$(DOCKER_RUN) sh -c "oapi-codegen -config .oapi-codegen.yaml api/openapi/rest-api.yaml"
+	@echo "Generated: internal/api/rest/openapi/generated.go"
+
+# Generate all (proto + REST API)
+generate: proto generate-api
 
 # Build targets
 clean:
 	@echo "Cleaning generated files..."
 	@rm -f api/proto/agent/v1/*.pb.go
+	@rm -f api/openapi/*.swagger.json
+	@rm -rf internal/api/rest/openapi/
 	@rm -rf bin/
 	@rm -f coverage.out coverage.html
 

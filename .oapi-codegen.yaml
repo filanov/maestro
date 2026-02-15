@@ -1,0 +1,12 @@
+package: openapi
+output: internal/api/rest/openapi/generated.go
+generate:
+  models: true
+  chi-server: true
+  strict-server: false
+  embedded-spec: true
+output-options:
+  skip-prune: true
+  user-templates:
+compatibility:
+  always-prefix-enum-values: true

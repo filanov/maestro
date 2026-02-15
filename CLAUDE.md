@@ -45,8 +45,16 @@ make docker-up
 # Build both server and agent binaries (in container)
 make build
 
-# Generate protobuf files (in container)
+# Generate protobuf files and gRPC OpenAPI/Swagger (in container)
 make proto
+# Generates: api/proto/agent/v1/*.pb.go and api/openapi/agent.swagger.json
+
+# Generate REST API code from OpenAPI spec (in container)
+make generate-api
+# Generates: internal/api/rest/openapi/generated.go from api/openapi/rest-api.yaml
+
+# Generate all (proto + REST API)
+make generate
 
 # Clean generated files
 make clean
@@ -260,9 +268,9 @@ internal/engine/           - Task scheduler
 internal/monitor/          - Health monitor
 internal/cleaner/          - Cleanup service
 internal/config/           - Configuration management
-api/proto/agent/v1/        - Protocol buffers
+api/proto/agent/v1/        - Protocol buffers (gRPC service definitions)
+api/openapi/               - OpenAPI/Swagger specs (generated from proto)
 migrations/                - Database migrations
-api/openapi/               - OpenAPI specs (not yet implemented)
 ```
 
 ### Database Schema

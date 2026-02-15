@@ -191,10 +191,47 @@ func (h *TaskHandler) HandleReorderTasks(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	tasks, err := h.db.GetTasksForCluster(r.Context(), req.ClusterID)
+	if err != nil {
+		slog.Error("failed to get tasks for reorder", "error", err, "cluster_id", req.ClusterID)
+		writeError(w, http.StatusInternalServerError, "failed to get tasks")
+		return
+	}
+
+	oldOrderMap := make(map[string]int)
+	for _, task := range tasks {
+		oldOrderMap[task.ID] = task.Order
+	}
+
 	if err := h.db.ReorderTasks(r.Context(), req.ClusterID, req.TaskIDs); err != nil {
 		slog.Error("failed to reorder tasks", "error", err, "cluster_id", req.ClusterID)
 		writeError(w, http.StatusInternalServerError, "failed to reorder tasks")
 		return
+	}
+
+	var changedTasks []string
+	for newPosition, taskID := range req.TaskIDs {
+		oldPosition, exists := oldOrderMap[taskID]
+		if !exists {
+			continue
+		}
+		if oldPosition != newPosition+1 {
+			changedTasks = append(changedTasks, taskID)
+		}
+	}
+
+	for _, taskID := range changedTasks {
+		if err := h.db.ResetExecutionsForTask(r.Context(), taskID); err != nil {
+			slog.Warn("failed to reset executions after reorder", "error", err, "task_id", taskID)
+		} else {
+			slog.Info("task executions reset due to order change", "task_id", taskID)
+		}
+	}
+
+	if len(changedTasks) > 0 {
+		slog.Info("reorder completed with execution resets", "cluster_id", req.ClusterID, "changed_tasks", len(changedTasks))
+	} else {
+		slog.Info("reorder completed with no position changes", "cluster_id", req.ClusterID)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

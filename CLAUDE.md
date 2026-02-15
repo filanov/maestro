@@ -187,6 +187,8 @@ All list endpoints support pagination via `?limit=50&offset=0` query parameters.
 
 **Task Update Behavior**: When a task is updated via PUT /api/v1/tasks/{id}, all execution records for that task are automatically reset to "pending" status, triggering re-execution on all agents during their next poll cycle.
 
+**Task Reorder Behavior**: When tasks are reordered via POST /api/v1/tasks/reorder, only tasks whose order position actually changed have their executions reset. Tasks that remain in the same position are not affected, preventing unnecessary re-execution.
+
 ### Core Components
 
 **Task Scheduler** (`internal/engine/scheduler.go`):

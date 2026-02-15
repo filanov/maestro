@@ -4,7 +4,7 @@ This directory contains OpenAPI/Swagger specifications for Maestro APIs.
 
 ## Files
 
-### `rest-api.yaml`
+### `swagger.json`
 OpenAPI 3.0 specification for the REST management API. Defines all endpoints for:
 - Cluster management
 - Agent management
@@ -26,7 +26,7 @@ Swagger 2.0 specification for the gRPC agent API (auto-generated from proto file
 
 ## Using Generated Code
 
-The REST API code is generated using `oapi-codegen` from `rest-api.yaml`.
+The REST API code is generated using `oapi-codegen` from `swagger.json`.
 
 ### What Gets Generated
 
@@ -101,7 +101,7 @@ func (a *OpenAPIAdapter) ListClusters(w http.ResponseWriter, r *http.Request, pa
 
 ### Regenerating Code
 
-When you modify `rest-api.yaml`:
+When you modify `swagger.json`:
 
 ```bash
 # Regenerate REST API code
@@ -126,20 +126,20 @@ You can use various tools to view/interact with the OpenAPI spec:
 
 ### Swagger UI
 ```bash
-docker run -p 8081:8080 -e SWAGGER_JSON=/api/rest-api.yaml \
+docker run -p 8081:8080 -e SWAGGER_JSON=/api/swagger.json \
   -v $(pwd)/api/openapi:/api swaggerapi/swagger-ui
 ```
 Open: http://localhost:8081
 
 ### Redoc
 ```bash
-docker run -p 8081:80 -e SPEC_URL=/api/rest-api.yaml \
+docker run -p 8081:80 -e SPEC_URL=/api/swagger.json \
   -v $(pwd)/api/openapi:/usr/share/nginx/html/api redocly/redoc
 ```
 Open: http://localhost:8081
 
 ### VSCode Extension
-Install "OpenAPI (Swagger) Editor" extension and open `rest-api.yaml`.
+Install "OpenAPI (Swagger) Editor" extension and open `swagger.json`.
 
 ## Configuration
 

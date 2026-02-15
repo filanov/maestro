@@ -91,7 +91,7 @@ proto:
 generate-api:
 	@echo "Generating REST API code from OpenAPI spec (in container)..."
 	@mkdir -p internal/api/rest/openapi
-	@$(DOCKER_RUN) sh -c "oapi-codegen -config .oapi-codegen.yaml api/openapi/rest-api.yaml"
+	@$(DOCKER_RUN) sh -c "oapi-codegen -config .oapi-codegen.yaml api/openapi/swagger.json"
 	@echo "Generated: internal/api/rest/openapi/generated.go"
 
 # Generate all (proto + REST API)
@@ -112,7 +112,7 @@ build:
 	@$(DOCKER_RUN) sh -c "go build -o bin/server ./cmd/server"
 	@$(DOCKER_RUN) sh -c "go build -o bin/agent ./cmd/agent"
 	@echo "Binaries built: bin/server, bin/agent"
-	@echo "Note: If you modified api/openapi/rest-api.yaml, run 'make generate-api' first"
+	@echo "Note: If you modified api/openapi/swagger.json, run 'make generate-api' first"
 
 # Test targets
 test: docker-up

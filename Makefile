@@ -79,12 +79,12 @@ proto:
 	@echo "Generating protobuf files (in container)..."
 	@$(DOCKER_RUN) sh -c "protoc --go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		proto/agent/v1/agent.proto"
+		api/proto/agent/v1/agent.proto"
 
 # Build targets
 clean:
 	@echo "Cleaning generated files..."
-	@rm -f proto/agent/v1/*.pb.go
+	@rm -f api/proto/agent/v1/*.pb.go
 	@rm -rf bin/
 	@rm -f coverage.out coverage.html
 
@@ -119,7 +119,7 @@ lint:
 	@echo "Running linters (in container)..."
 	@$(DOCKER_RUN) sh -c "go vet ./..."
 	@echo "Running format check..."
-	@$(DOCKER_RUN) sh -c "test -z \"\$$(gofmt -l . | grep -v 'proto/.*\.pb\.go')\" || (echo 'Files not formatted, run make fmt' && gofmt -l . | grep -v 'proto/.*\.pb\.go' && exit 1)"
+	@$(DOCKER_RUN) sh -c "test -z \"\$$(gofmt -l . | grep -v 'api/proto/.*\.pb\.go')\" || (echo 'Files not formatted, run make fmt' && gofmt -l . | grep -v 'api/proto/.*\.pb\.go' && exit 1)"
 	@echo "Running golangci-lint..."
 	@$(DOCKER_RUN) sh -c "golangci-lint run || echo 'golangci-lint checks completed with warnings'"
 
@@ -129,7 +129,7 @@ fmt:
 
 fmt-check:
 	@echo "Checking formatting (in container)..."
-	@$(DOCKER_RUN) sh -c "test -z \"\$$(gofmt -l . | grep -v 'proto/.*\.pb\.go')\" || (echo 'Files not formatted:' && gofmt -l . | grep -v 'proto/.*\.pb\.go' && exit 1)"
+	@$(DOCKER_RUN) sh -c "test -z \"\$$(gofmt -l . | grep -v 'api/proto/.*\.pb\.go')\" || (echo 'Files not formatted:' && gofmt -l . | grep -v 'api/proto/.*\.pb\.go' && exit 1)"
 
 # Migration targets
 migrate-up: docker-up

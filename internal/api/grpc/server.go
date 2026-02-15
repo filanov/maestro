@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
+	pb "github.com/filanov/maestro/api/proto/agent/v1"
 	"github.com/filanov/maestro/internal/db"
 	"github.com/filanov/maestro/internal/engine"
 	"github.com/filanov/maestro/internal/models"
-	pb "github.com/filanov/maestro/proto/agent/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

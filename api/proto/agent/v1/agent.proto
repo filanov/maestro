@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package maestro.agent.v1;
 
-option go_package = "github.com/filanov/maestro/proto/agent/v1";
+option go_package = "github.com/filanov/maestro/api/proto/agent/v1";
 
 service AgentService {
   rpc Register(RegisterRequest) returns (RegisterResponse);

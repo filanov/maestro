@@ -9,10 +9,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	pb "github.com/filanov/maestro/api/proto/agent/v1"
 	"github.com/filanov/maestro/internal/api/grpc"
 	"github.com/filanov/maestro/internal/db"
 	"github.com/filanov/maestro/internal/models"
-	pb "github.com/filanov/maestro/proto/agent/v1"
 )
 
 var _ = Describe("gRPC Server", func() {
@@ -357,6 +357,7 @@ func (m *MockDB) ListExecutions(ctx context.Context, filters db.ExecutionFilters
 	return nil, 0, nil
 }
 func (m *MockDB) FailRunningTasksForAgent(ctx context.Context, agentID string) error { return nil }
+func (m *MockDB) ResetExecutionsForTask(ctx context.Context, taskID string) error    { return nil }
 func (m *MockDB) CreateDebugTask(ctx context.Context, task *models.DebugTask) error  { return nil }
 func (m *MockDB) ListDebugTasks(ctx context.Context, agentID string, limit, offset int) ([]*models.DebugTask, int, error) {
 	return nil, 0, nil

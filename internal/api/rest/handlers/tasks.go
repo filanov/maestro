@@ -144,6 +144,12 @@ func (h *TaskHandler) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.db.ResetExecutionsForTask(r.Context(), id); err != nil {
+		slog.Warn("failed to reset executions after task update", "error", err, "id", id)
+	} else {
+		slog.Info("task executions reset after update", "task_id", id)
+	}
+
 	task, err := h.db.GetTask(r.Context(), id)
 	if err != nil {
 		slog.Error("failed to get updated task", "error", err, "id", id)
@@ -188,6 +194,31 @@ func (h *TaskHandler) HandleReorderTasks(w http.ResponseWriter, r *http.Request)
 	if err := h.db.ReorderTasks(r.Context(), req.ClusterID, req.TaskIDs); err != nil {
 		slog.Error("failed to reorder tasks", "error", err, "cluster_id", req.ClusterID)
 		writeError(w, http.StatusInternalServerError, "failed to reorder tasks")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *TaskHandler) HandleResetTaskExecutions(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
+
+	if _, err := h.db.GetTask(r.Context(), id); err == db.ErrNotFound {
+		writeError(w, http.StatusNotFound, "task not found")
+		return
+	} else if err != nil {
+		slog.Error("failed to get task", "error", err, "id", id)
+		writeError(w, http.StatusInternalServerError, "failed to verify task")
+		return
+	}
+
+	if err := h.db.ResetExecutionsForTask(r.Context(), id); err != nil {
+		slog.Error("failed to reset task executions", "error", err, "task_id", id)
+		writeError(w, http.StatusInternalServerError, "failed to reset task executions")
 		return
 	}
 

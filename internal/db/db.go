@@ -41,6 +41,7 @@ type DB interface {
 	GetExecutionsForAgent(ctx context.Context, agentID string) ([]*models.TaskExecution, error)
 	DeleteAllExecutionsForAgent(ctx context.Context, agentID string) error
 	FailRunningTasksForAgent(ctx context.Context, agentID string) error
+	ResetExecutionsForTask(ctx context.Context, taskID string) error
 
 	CreateDebugTask(ctx context.Context, task *models.DebugTask) error
 	GetDebugTask(ctx context.Context, id string) (*models.DebugTask, error)

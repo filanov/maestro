@@ -42,6 +42,7 @@ func (s *Server) setupRouter() http.Handler {
 			r.Get("/{id}", s.handleGetTask)
 			r.Put("/{id}", s.handleUpdateTask)
 			r.Delete("/{id}", s.handleDeleteTask)
+			r.Post("/{id}/reset-executions", s.handleResetTaskExecutions)
 			r.Post("/reorder", s.handleReorderTasks)
 		})
 

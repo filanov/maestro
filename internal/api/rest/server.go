@@ -123,6 +123,10 @@ func (s *Server) handleReorderTasks(w http.ResponseWriter, r *http.Request) {
 	s.taskHandler.HandleReorderTasks(w, r)
 }
 
+func (s *Server) handleResetTaskExecutions(w http.ResponseWriter, r *http.Request) {
+	s.taskHandler.HandleResetTaskExecutions(w, r)
+}
+
 func (s *Server) handleListExecutions(w http.ResponseWriter, r *http.Request) {
 	s.executionHandler.HandleListExecutions(w, r)
 }

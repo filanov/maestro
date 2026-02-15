@@ -176,7 +176,7 @@ Maestro is a distributed task orchestration system managing up to 9k agents per 
 **UI → Service (REST API)**:
 - **Clusters**: List, Create, Get, Delete
 - **Agents**: List (by cluster), Get, Delete, List executions
-- **Tasks**: List, Create, Get, Update, Delete, Reorder
+- **Tasks**: List, Create, Get, Update, Delete, Reorder, Reset Executions
 - **Executions**: List (with filtering), Get
 - **Debug Tasks**: Create, Get, List (by agent)
 - **Health**: Health check endpoint
@@ -184,6 +184,8 @@ Maestro is a distributed task orchestration system managing up to 9k agents per 
 **REST API Base URL**: `http://localhost:8080`
 
 All list endpoints support pagination via `?limit=50&offset=0` query parameters.
+
+**Task Update Behavior**: When a task is updated via PUT /api/v1/tasks/{id}, all execution records for that task are automatically reset to "pending" status, triggering re-execution on all agents during their next poll cycle.
 
 ### Core Components
 
@@ -256,9 +258,9 @@ internal/engine/           - Task scheduler
 internal/monitor/          - Health monitor
 internal/cleaner/          - Cleanup service
 internal/config/           - Configuration management
-proto/agent/v1/            - Protocol buffers
+api/proto/agent/v1/        - Protocol buffers
 migrations/                - Database migrations
-api/                       - OpenAPI specs (not yet implemented)
+api/openapi/               - OpenAPI specs (not yet implemented)
 ```
 
 ### Database Schema
@@ -305,10 +307,10 @@ api/                       - OpenAPI specs (not yet implemented)
 - `bin/agent` - Agent for task execution
 
 ### Phase 2 - REST API & Management ✅ COMPLETED
-- [x] REST API implementation (24 endpoints)
+- [x] REST API implementation (25 endpoints)
   - [x] Cluster management (4 endpoints: List, Create, Get, Delete)
   - [x] Agent management (4 endpoints: List by cluster, Get, Delete, List executions)
-  - [x] Task management (6 endpoints: List, Create, Get, Update, Delete, Reorder)
+  - [x] Task management (7 endpoints: List, Create, Get, Update, Delete, Reorder, Reset Executions)
   - [x] Execution viewing (3 endpoints: List with filtering, Get, List by agent)
   - [x] Debug task management (3 endpoints: Create, Get, List by agent)
   - [x] Health check (1 endpoint)

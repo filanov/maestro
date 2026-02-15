@@ -273,6 +273,7 @@ func (m *MockDB) ListExecutions(ctx context.Context, filters db.ExecutionFilters
 }
 func (m *MockDB) DeleteAllExecutionsForAgent(ctx context.Context, agentID string) error { return nil }
 func (m *MockDB) FailRunningTasksForAgent(ctx context.Context, agentID string) error    { return nil }
+func (m *MockDB) ResetExecutionsForTask(ctx context.Context, taskID string) error       { return nil }
 func (m *MockDB) CreateDebugTask(ctx context.Context, task *models.DebugTask) error     { return nil }
 func (m *MockDB) GetDebugTask(ctx context.Context, id string) (*models.DebugTask, error) {
 	return nil, nil

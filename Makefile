@@ -89,12 +89,9 @@ proto:
 
 # REST API code generation from OpenAPI spec
 generate-api:
-	@echo "Generating REST API code from OpenAPI spec (in fresh container)..."
+	@echo "Generating REST API code from OpenAPI spec (in container)..."
 	@mkdir -p internal/api/rest/openapi
-	@docker run --rm -v $(PWD):/workspace -w /workspace golang:1.25-alpine sh -c \
-		"apk add --no-cache git > /dev/null 2>&1 && \
-		go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest > /dev/null 2>&1 && \
-		oapi-codegen -config .oapi-codegen.yaml api/openapi/rest-api.yaml"
+	@$(DOCKER_RUN) sh -c "oapi-codegen -config .oapi-codegen.yaml api/openapi/rest-api.yaml"
 	@echo "Generated: internal/api/rest/openapi/generated.go"
 
 # Generate all (proto + REST API)

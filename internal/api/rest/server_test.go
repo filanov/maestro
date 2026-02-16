@@ -566,12 +566,13 @@ var _ = Describe("REST Server", func() {
 				body, _ := json.Marshal(reqBody)
 
 				existingTasks := []*models.Task{
-					{ID: task1ID.String(), Order: 0},
-					{ID: task2ID.String(), Order: 1},
+					{ID: task1ID.String(), Order: 1}, // 1-based order like in database
+					{ID: task2ID.String(), Order: 2},
 				}
 
 				mockDB.EXPECT().GetTasksForCluster(gomock.Any(), clusterID.String()).Return(existingTasks, nil)
 				mockDB.EXPECT().ReorderTasks(gomock.Any(), clusterID.String(), []string{task2ID.String(), task1ID.String()}).Return(nil)
+				// Both tasks change order: task2 from 2->1, task1 from 1->2
 				mockDB.EXPECT().ResetExecutionsForTask(gomock.Any(), task1ID.String()).Return(nil)
 				mockDB.EXPECT().ResetExecutionsForTask(gomock.Any(), task2ID.String()).Return(nil)
 
@@ -640,6 +641,42 @@ var _ = Describe("REST Server", func() {
 				server.ReorderTasks(w, req)
 
 				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+
+			It("should only reset executions for tasks that changed order", func() {
+				clusterID := uuid.New()
+				task1ID := uuid.New()
+				task2ID := uuid.New()
+				task3ID := uuid.New()
+				task4ID := uuid.New()
+
+				// Original order: task1(1), task2(2), task3(3), task4(4)
+				// New order: task1(1), task2(2), task4(3), task3(4) - swap last two
+				reqBody := openapi.ReorderTasksRequest{
+					ClusterId: clusterID,
+					TaskIds:   []uuid.UUID{task1ID, task2ID, task4ID, task3ID},
+				}
+				body, _ := json.Marshal(reqBody)
+
+				existingTasks := []*models.Task{
+					{ID: task1ID.String(), Order: 1},
+					{ID: task2ID.String(), Order: 2},
+					{ID: task3ID.String(), Order: 3},
+					{ID: task4ID.String(), Order: 4},
+				}
+
+				mockDB.EXPECT().GetTasksForCluster(gomock.Any(), clusterID.String()).Return(existingTasks, nil)
+				mockDB.EXPECT().ReorderTasks(gomock.Any(), clusterID.String(), []string{task1ID.String(), task2ID.String(), task4ID.String(), task3ID.String()}).Return(nil)
+				// Should only reset task3 and task4 (the ones that changed positions)
+				mockDB.EXPECT().ResetExecutionsForTask(gomock.Any(), task3ID.String()).Return(nil)
+				mockDB.EXPECT().ResetExecutionsForTask(gomock.Any(), task4ID.String()).Return(nil)
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/reorder", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.ReorderTasks(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusNoContent))
 			})
 		})
 

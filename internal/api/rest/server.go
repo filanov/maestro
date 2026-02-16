@@ -443,7 +443,10 @@ func (s *Server) ReorderTasks(w http.ResponseWriter, r *http.Request) {
 		if !exists {
 			continue
 		}
-		if oldPosition != newPosition {
+		newOrder := newPosition + 1 // Convert 0-based index to 1-based order to match DB
+		slog.Debug("checking task order", "task_id", taskID, "old_order", oldPosition, "new_position", newPosition, "new_order", newOrder)
+		if oldPosition != newOrder {
+			slog.Debug("task order changed - marking for reset", "task_id", taskID, "old_order", oldPosition, "new_order", newOrder)
 			changedTasks = append(changedTasks, taskID)
 		}
 	}

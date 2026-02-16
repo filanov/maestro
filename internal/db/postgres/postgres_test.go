@@ -440,6 +440,103 @@ var _ = Describe("Postgres DB", func() {
 			Expect(tasks[1].Name).To(Equal("Task 2"))
 		})
 
+		It("should update a template task", func() {
+			template := &models.Template{Name: "Update Test"}
+			Expect(database.CreateTemplate(ctx, template)).To(Succeed())
+
+			task := &models.TemplateTask{
+				TemplateID: template.ID,
+				Name:       "Original Name",
+				Type:       models.TaskTypeExec,
+				Order:      1,
+				Blocking:   false,
+				Config:     models.TaskConfig{Command: "echo original"},
+			}
+			Expect(database.CreateTemplateTask(ctx, task)).To(Succeed())
+
+			newName := "Updated Name"
+			newBlocking := true
+			newConfig := models.TaskConfig{Command: "echo updated"}
+			update := &db.TemplateTaskUpdate{
+				Name:     &newName,
+				Blocking: &newBlocking,
+				Config:   &newConfig,
+			}
+			err := database.UpdateTemplateTask(ctx, task.ID, update)
+			Expect(err).NotTo(HaveOccurred())
+
+			updated, err := database.GetTemplateTask(ctx, task.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Name).To(Equal("Updated Name"))
+			Expect(updated.Blocking).To(BeTrue())
+			Expect(updated.Config.Command).To(Equal("echo updated"))
+		})
+
+		It("should delete a template task", func() {
+			template := &models.Template{Name: "Delete Task Test"}
+			Expect(database.CreateTemplate(ctx, template)).To(Succeed())
+
+			task := &models.TemplateTask{
+				TemplateID: template.ID,
+				Name:       "Task to Delete",
+				Type:       models.TaskTypeExec,
+				Order:      1,
+				Config:     models.TaskConfig{Command: "echo test"},
+			}
+			Expect(database.CreateTemplateTask(ctx, task)).To(Succeed())
+
+			err := database.DeleteTemplateTask(ctx, task.ID)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = database.GetTemplateTask(ctx, task.ID)
+			Expect(err).To(Equal(db.ErrNotFound))
+		})
+
+		It("should reorder template tasks", func() {
+			template := &models.Template{Name: "Reorder Test"}
+			Expect(database.CreateTemplate(ctx, template)).To(Succeed())
+
+			task1 := &models.TemplateTask{
+				TemplateID: template.ID,
+				Name:       "Task 1",
+				Type:       models.TaskTypeExec,
+				Order:      1,
+				Config:     models.TaskConfig{Command: "cmd1"},
+			}
+			Expect(database.CreateTemplateTask(ctx, task1)).To(Succeed())
+
+			task2 := &models.TemplateTask{
+				TemplateID: template.ID,
+				Name:       "Task 2",
+				Type:       models.TaskTypeExec,
+				Order:      2,
+				Config:     models.TaskConfig{Command: "cmd2"},
+			}
+			Expect(database.CreateTemplateTask(ctx, task2)).To(Succeed())
+
+			task3 := &models.TemplateTask{
+				TemplateID: template.ID,
+				Name:       "Task 3",
+				Type:       models.TaskTypeExec,
+				Order:      3,
+				Config:     models.TaskConfig{Command: "cmd3"},
+			}
+			Expect(database.CreateTemplateTask(ctx, task3)).To(Succeed())
+
+			err := database.ReorderTemplateTasks(ctx, template.ID, []string{task3.ID, task1.ID, task2.ID})
+			Expect(err).NotTo(HaveOccurred())
+
+			tasks, err := database.GetTemplateTasksForTemplate(ctx, template.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(tasks).To(HaveLen(3))
+			Expect(tasks[0].Name).To(Equal("Task 3"))
+			Expect(tasks[0].Order).To(Equal(1))
+			Expect(tasks[1].Name).To(Equal("Task 1"))
+			Expect(tasks[1].Order).To(Equal(2))
+			Expect(tasks[2].Name).To(Equal("Task 2"))
+			Expect(tasks[2].Order).To(Equal(3))
+		})
+
 		It("should import template to cluster", func() {
 			cluster := &models.Cluster{Name: "Test Cluster"}
 			Expect(database.CreateCluster(ctx, cluster)).To(Succeed())

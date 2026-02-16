@@ -314,6 +314,9 @@ func (m *MockDB) CreateTemplateTask(ctx context.Context, task *models.TemplateTa
 func (m *MockDB) GetTemplateTask(ctx context.Context, id string) (*models.TemplateTask, error) {
 	return nil, nil
 }
+func (m *MockDB) UpdateTemplateTask(ctx context.Context, id string, update *db.TemplateTaskUpdate) error {
+	return nil
+}
 func (m *MockDB) ListTemplateTasks(ctx context.Context, templateID string, limit, offset int) ([]*models.TemplateTask, int, error) {
 	return nil, 0, nil
 }
@@ -321,6 +324,9 @@ func (m *MockDB) GetTemplateTasksForTemplate(ctx context.Context, templateID str
 	return nil, nil
 }
 func (m *MockDB) DeleteTemplateTask(ctx context.Context, id string) error { return nil }
+func (m *MockDB) ReorderTemplateTasks(ctx context.Context, templateID string, taskIDs []string) error {
+	return nil
+}
 func (m *MockDB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID string) error {
 	return nil
 }

@@ -195,6 +195,12 @@ type ReorderTasksRequest struct {
 	TaskIds   []openapi_types.UUID `json:"task_ids"`
 }
 
+// ReorderTemplateTasksRequest defines model for ReorderTemplateTasksRequest.
+type ReorderTemplateTasksRequest struct {
+	TaskIds    []openapi_types.UUID `json:"task_ids"`
+	TemplateId openapi_types.UUID   `json:"template_id"`
+}
+
 // Task defines model for Task.
 type Task struct {
 	Blocking  bool               `json:"blocking"`
@@ -271,6 +277,13 @@ type UpdateTaskRequest struct {
 type UpdateTemplateRequest struct {
 	Description *string `json:"description,omitempty"`
 	Name        *string `json:"name,omitempty"`
+}
+
+// UpdateTemplateTaskRequest defines model for UpdateTemplateTaskRequest.
+type UpdateTemplateTaskRequest struct {
+	Blocking *bool       `json:"blocking,omitempty"`
+	Config   *TaskConfig `json:"config,omitempty"`
+	Name     *string     `json:"name,omitempty"`
 }
 
 // ID defines model for ID.
@@ -366,6 +379,12 @@ type ReorderTasksJSONRequestBody = ReorderTasksRequest
 // UpdateTaskJSONRequestBody defines body for UpdateTask for application/json ContentType.
 type UpdateTaskJSONRequestBody = UpdateTaskRequest
 
+// ReorderTemplateTasksJSONRequestBody defines body for ReorderTemplateTasks for application/json ContentType.
+type ReorderTemplateTasksJSONRequestBody = ReorderTemplateTasksRequest
+
+// UpdateTemplateTaskJSONRequestBody defines body for UpdateTemplateTask for application/json ContentType.
+type UpdateTemplateTaskJSONRequestBody = UpdateTemplateTaskRequest
+
 // CreateTemplateJSONRequestBody defines body for CreateTemplate for application/json ContentType.
 type CreateTemplateJSONRequestBody = CreateTemplateRequest
 
@@ -443,6 +462,15 @@ type ServerInterface interface {
 	// Reset task executions
 	// (POST /api/v1/tasks/{id}/reset-executions)
 	ResetTaskExecutions(w http.ResponseWriter, r *http.Request, id ID)
+	// Reorder template tasks
+	// (POST /api/v1/template-tasks/reorder)
+	ReorderTemplateTasks(w http.ResponseWriter, r *http.Request)
+	// Delete a template task
+	// (DELETE /api/v1/template-tasks/{id})
+	DeleteTemplateTask(w http.ResponseWriter, r *http.Request, id ID)
+	// Update a template task
+	// (PUT /api/v1/template-tasks/{id})
+	UpdateTemplateTask(w http.ResponseWriter, r *http.Request, id ID)
 	// List all templates
 	// (GET /api/v1/templates)
 	ListTemplates(w http.ResponseWriter, r *http.Request, params ListTemplatesParams)
@@ -602,6 +630,24 @@ func (_ Unimplemented) UpdateTask(w http.ResponseWriter, r *http.Request, id ID)
 // Reset task executions
 // (POST /api/v1/tasks/{id}/reset-executions)
 func (_ Unimplemented) ResetTaskExecutions(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reorder template tasks
+// (POST /api/v1/template-tasks/reorder)
+func (_ Unimplemented) ReorderTemplateTasks(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete a template task
+// (DELETE /api/v1/template-tasks/{id})
+func (_ Unimplemented) DeleteTemplateTask(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a template task
+// (PUT /api/v1/template-tasks/{id})
+func (_ Unimplemented) UpdateTemplateTask(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1310,6 +1356,70 @@ func (siw *ServerInterfaceWrapper) ResetTaskExecutions(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// ReorderTemplateTasks operation middleware
+func (siw *ServerInterfaceWrapper) ReorderTemplateTasks(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReorderTemplateTasks(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTemplateTask operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTemplateTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTemplateTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateTemplateTask operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTemplateTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateTemplateTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListTemplates operation middleware
 func (siw *ServerInterfaceWrapper) ListTemplates(w http.ResponseWriter, r *http.Request) {
 
@@ -1697,6 +1807,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/tasks/{id}/reset-executions", wrapper.ResetTaskExecutions)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/template-tasks/reorder", wrapper.ReorderTemplateTasks)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/template-tasks/{id}", wrapper.DeleteTemplateTask)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/template-tasks/{id}", wrapper.UpdateTemplateTask)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/templates", wrapper.ListTemplates)
 	})
 	r.Group(func(r chi.Router) {
@@ -1727,48 +1846,50 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"/6LGlkjLWQAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -805,6 +805,85 @@ func (s *Server) CreateTemplateTask(w http.ResponseWriter, r *http.Request, id o
 	writeJSON(w, http.StatusCreated, modelToOpenAPITemplateTask(task))
 }
 
+func (s *Server) UpdateTemplateTask(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var req openapi.UpdateTemplateTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	update := &db.TemplateTaskUpdate{}
+
+	if req.Name != nil {
+		update.Name = req.Name
+	}
+	if req.Blocking != nil {
+		update.Blocking = req.Blocking
+	}
+	if req.Config != nil {
+		timeout := 300 * time.Second
+		if req.Config.TimeoutSeconds != nil {
+			timeout = time.Duration(*req.Config.TimeoutSeconds) * time.Second
+		}
+
+		config := models.TaskConfig{
+			Command:    req.Config.Command,
+			Timeout:    timeout,
+			WorkingDir: stringPtrToString(req.Config.WorkingDir),
+		}
+		update.Config = &config
+	}
+
+	if err := s.db.UpdateTemplateTask(r.Context(), uuidToString(id), update); err == db.ErrNotFound {
+		writeError(w, http.StatusNotFound, "template task not found")
+		return
+	} else if err != nil {
+		slog.Error("failed to update template task", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to update template task")
+		return
+	}
+
+	task, err := s.db.GetTemplateTask(r.Context(), uuidToString(id))
+	if err != nil {
+		slog.Error("failed to get updated template task", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get updated template task")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, modelToOpenAPITemplateTask(task))
+}
+
+func (s *Server) DeleteTemplateTask(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	if err := s.db.DeleteTemplateTask(r.Context(), uuidToString(id)); err != nil {
+		slog.Error("failed to delete template task", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to delete template task")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) ReorderTemplateTasks(w http.ResponseWriter, r *http.Request) {
+	var req openapi.ReorderTemplateTasksRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	taskIDs := make([]string, len(req.TaskIds))
+	for i, uuid := range req.TaskIds {
+		taskIDs[i] = uuidToString(uuid)
+	}
+
+	if err := s.db.ReorderTemplateTasks(r.Context(), uuidToString(req.TemplateId), taskIDs); err != nil {
+		slog.Error("failed to reorder template tasks", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to reorder template tasks")
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *Server) ImportTemplate(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var req openapi.ImportTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

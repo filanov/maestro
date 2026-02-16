@@ -62,9 +62,11 @@ type DB interface {
 
 	CreateTemplateTask(ctx context.Context, task *models.TemplateTask) error
 	GetTemplateTask(ctx context.Context, id string) (*models.TemplateTask, error)
+	UpdateTemplateTask(ctx context.Context, id string, update *TemplateTaskUpdate) error
 	ListTemplateTasks(ctx context.Context, templateID string, limit, offset int) ([]*models.TemplateTask, int, error)
 	GetTemplateTasksForTemplate(ctx context.Context, templateID string) ([]*models.TemplateTask, error)
 	DeleteTemplateTask(ctx context.Context, id string) error
+	ReorderTemplateTasks(ctx context.Context, templateID string, taskIDs []string) error
 
 	ImportTemplateToCluster(ctx context.Context, clusterID, templateID string) error
 	ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template, taskIDs []string) error
@@ -92,4 +94,10 @@ type ExecutionFilters struct {
 type TemplateUpdate struct {
 	Name        *string
 	Description *string
+}
+
+type TemplateTaskUpdate struct {
+	Name     *string
+	Blocking *bool
+	Config   *models.TaskConfig
 }

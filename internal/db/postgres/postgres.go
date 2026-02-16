@@ -977,6 +977,40 @@ func (d *DB) GetTemplateTask(ctx context.Context, id string) (*models.TemplateTa
 	return task, nil
 }
 
+func (d *DB) UpdateTemplateTask(ctx context.Context, id string, update *db.TemplateTaskUpdate) error {
+	task, err := d.GetTemplateTask(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if update.Name != nil {
+		task.Name = *update.Name
+	}
+	if update.Blocking != nil {
+		task.Blocking = *update.Blocking
+	}
+	if update.Config != nil {
+		task.Config = *update.Config
+	}
+	task.UpdatedAt = time.Now()
+
+	configJSON, err := json.Marshal(task.Config)
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	query := `
+		UPDATE template_tasks
+		SET name = $2, blocking = $3, config = $4, updated_at = $5
+		WHERE id = $1
+	`
+	_, err = d.conn.ExecContext(ctx, query, id, task.Name, task.Blocking, configJSON, task.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("update template task: %w", err)
+	}
+	return nil
+}
+
 func (d *DB) ListTemplateTasks(ctx context.Context, templateID string, limit, offset int) ([]*models.TemplateTask, int, error) {
 	countQuery := `SELECT COUNT(*) FROM template_tasks WHERE template_id = $1`
 	var total int
@@ -1051,6 +1085,35 @@ func (d *DB) DeleteTemplateTask(ctx context.Context, id string) error {
 	_, err := d.conn.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("delete template task: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) ReorderTemplateTasks(ctx context.Context, templateID string, taskIDs []string) error {
+	tx, err := d.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// First pass: set all orders to high values to avoid constraint violations
+	for i, taskID := range taskIDs {
+		query := `UPDATE template_tasks SET "order" = $1 WHERE id = $2 AND template_id = $3`
+		if _, err := tx.ExecContext(ctx, query, 1000+i, taskID, templateID); err != nil {
+			return fmt.Errorf("update template task order (temp): %w", err)
+		}
+	}
+
+	// Second pass: set final order values
+	for i, taskID := range taskIDs {
+		query := `UPDATE template_tasks SET "order" = $1 WHERE id = $2 AND template_id = $3`
+		if _, err := tx.ExecContext(ctx, query, i+1, taskID, templateID); err != nil {
+			return fmt.Errorf("update template task order: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
 	}
 	return nil
 }

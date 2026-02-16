@@ -1202,6 +1202,128 @@
           }
         }
       }
+    },
+    "/api/v1/template-tasks/{id}": {
+      "put": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Update a template task",
+        "operationId": "updateTemplateTask",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTemplateTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Template task updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Delete a template task",
+        "operationId": "deleteTemplateTask",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Template task deleted"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/template-tasks/reorder": {
+      "post": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Reorder template tasks",
+        "operationId": "reorderTemplateTasks",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderTemplateTasksRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Template tasks reordered"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1746,6 +1868,40 @@
           "name",
           "type",
           "config"
+        ]
+      },
+      "UpdateTemplateTaskRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "config": {
+            "$ref": "#/components/schemas/TaskConfig"
+          }
+        }
+      },
+      "ReorderTemplateTasksRequest": {
+        "type": "object",
+        "properties": {
+          "template_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "task_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "template_id",
+          "task_ids"
         ]
       },
       "ImportTemplateRequest": {

@@ -545,7 +545,7 @@ var _ = Describe("Postgres DB", func() {
 				Name:        "Exported Template",
 				Description: "Exported from cluster",
 			}
-			err := database.ExportClusterToTemplate(ctx, cluster.ID, template)
+			err := database.ExportClusterToTemplate(ctx, cluster.ID, template, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(template.ID).NotTo(BeEmpty())
 
@@ -573,7 +573,7 @@ var _ = Describe("Postgres DB", func() {
 			Expect(database.CreateTask(ctx, task)).To(Succeed())
 
 			template := &models.Template{Name: "Round Trip"}
-			err := database.ExportClusterToTemplate(ctx, cluster1.ID, template)
+			err := database.ExportClusterToTemplate(ctx, cluster1.ID, template, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			cluster2 := &models.Cluster{Name: "Target Cluster"}
@@ -608,6 +608,54 @@ var _ = Describe("Postgres DB", func() {
 
 			_, err = database.GetTemplateTask(ctx, task.ID)
 			Expect(err).To(Equal(db.ErrNotFound))
+		})
+
+		It("should export only selected tasks from cluster to template", func() {
+			cluster := &models.Cluster{Name: "Selective Export Cluster"}
+			Expect(database.CreateCluster(ctx, cluster)).To(Succeed())
+
+			task1 := &models.Task{
+				ClusterID: cluster.ID,
+				Name:      "Task 1",
+				Type:      models.TaskTypeExec,
+				Order:     1,
+				Config:    models.TaskConfig{Command: "cmd1"},
+			}
+			Expect(database.CreateTask(ctx, task1)).To(Succeed())
+
+			task2 := &models.Task{
+				ClusterID: cluster.ID,
+				Name:      "Task 2",
+				Type:      models.TaskTypeExec,
+				Order:     2,
+				Config:    models.TaskConfig{Command: "cmd2"},
+			}
+			Expect(database.CreateTask(ctx, task2)).To(Succeed())
+
+			task3 := &models.Task{
+				ClusterID: cluster.ID,
+				Name:      "Task 3",
+				Type:      models.TaskTypeExec,
+				Order:     3,
+				Config:    models.TaskConfig{Command: "cmd3"},
+			}
+			Expect(database.CreateTask(ctx, task3)).To(Succeed())
+
+			template := &models.Template{
+				Name:        "Selective Template",
+				Description: "Only task 1 and 3",
+			}
+			err := database.ExportClusterToTemplate(ctx, cluster.ID, template, []string{task1.ID, task3.ID})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(template.ID).NotTo(BeEmpty())
+
+			templateTasks, err := database.GetTemplateTasksForTemplate(ctx, template.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(templateTasks).To(HaveLen(2))
+			Expect(templateTasks[0].Name).To(Equal("Task 1"))
+			Expect(templateTasks[0].Order).To(Equal(1))
+			Expect(templateTasks[1].Name).To(Equal("Task 3"))
+			Expect(templateTasks[1].Order).To(Equal(2))
 		})
 
 		It("should complete full workflow: create template, add tasks, create cluster, import, verify", func() {

@@ -67,7 +67,7 @@ type DB interface {
 	DeleteTemplateTask(ctx context.Context, id string) error
 
 	ImportTemplateToCluster(ctx context.Context, clusterID, templateID string) error
-	ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template) error
+	ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template, taskIDs []string) error
 }
 
 type AgentUpdate struct {

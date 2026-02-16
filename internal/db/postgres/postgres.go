@@ -1139,7 +1139,7 @@ func (d *DB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID 
 	return tx.Commit()
 }
 
-func (d *DB) ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template) error {
+func (d *DB) ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template, taskIDs []string) error {
 	tx, err := d.conn.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -1171,10 +1171,18 @@ func (d *DB) ExportClusterToTemplate(ctx context.Context, clusterID string, temp
 	query := `
 		SELECT id, name, type, "order", blocking, config
 		FROM tasks
-		WHERE cluster_id = $1 AND deleted_at IS NULL
-		ORDER BY "order" ASC
-	`
-	rows, err := tx.QueryContext(ctx, query, clusterID)
+		WHERE cluster_id = $1 AND deleted_at IS NULL`
+
+	args := []interface{}{clusterID}
+
+	if len(taskIDs) > 0 {
+		query += ` AND id = ANY($2)`
+		args = append(args, taskIDs)
+	}
+
+	query += ` ORDER BY "order" ASC`
+
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("get cluster tasks: %w", err)
 	}

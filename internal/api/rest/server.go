@@ -854,7 +854,15 @@ func (s *Server) ExportTemplate(w http.ResponseWriter, r *http.Request, id opena
 		template.Description = *req.TemplateDescription
 	}
 
-	if err := s.db.ExportClusterToTemplate(r.Context(), uuidToString(id), template); err == db.ErrNotFound {
+	var taskIDs []string
+	if req.TaskIds != nil {
+		taskIDs = make([]string, len(*req.TaskIds))
+		for i, uuid := range *req.TaskIds {
+			taskIDs[i] = uuidToString(uuid)
+		}
+	}
+
+	if err := s.db.ExportClusterToTemplate(r.Context(), uuidToString(id), template, taskIDs); err == db.ErrNotFound {
 		writeError(w, http.StatusNotFound, "cluster not found")
 		return
 	} else if err != nil {

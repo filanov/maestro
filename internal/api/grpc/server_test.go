@@ -399,6 +399,6 @@ func (m *MockDB) DeleteTemplateTask(ctx context.Context, id string) error { retu
 func (m *MockDB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID string) error {
 	return nil
 }
-func (m *MockDB) ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template) error {
+func (m *MockDB) ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template, taskIDs []string) error {
 	return nil
 }

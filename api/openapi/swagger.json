@@ -1783,6 +1783,14 @@
           },
           "template_description": {
             "type": "string"
+          },
+          "task_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Optional array of task IDs to export. If empty or omitted, all tasks are exported."
           }
         },
         "required": [

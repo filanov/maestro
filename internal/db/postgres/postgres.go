@@ -485,12 +485,12 @@ func (d *DB) ReorderTasks(ctx context.Context, clusterID string, taskIDs []strin
 
 func (d *DB) CreateExecution(ctx context.Context, execution *models.TaskExecution) error {
 	query := `
-		INSERT INTO task_executions (id, task_id, agent_id, status, output, exit_code, started_at, completed_at, error)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO task_executions (id, task_id, agent_id, cluster_id, status, output, exit_code, started_at, completed_at, error)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	execution.ID = uuid.New().String()
 	_, err := d.conn.ExecContext(ctx, query,
-		execution.ID, execution.TaskID, execution.AgentID, execution.Status,
+		execution.ID, execution.TaskID, execution.AgentID, execution.ClusterID, execution.Status,
 		execution.Output, execution.ExitCode, execution.StartedAt, execution.CompletedAt, execution.Error,
 	)
 	if err != nil {
@@ -838,4 +838,388 @@ func (d *DB) DeleteOldExecutionsKeepLastN(ctx context.Context, keepN int) error 
 		return fmt.Errorf("delete old executions: %w", err)
 	}
 	return nil
+}
+
+func (d *DB) CreateTemplate(ctx context.Context, template *models.Template) error {
+	query := `
+		INSERT INTO templates (id, name, description, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+	template.ID = uuid.New().String()
+	template.CreatedAt = time.Now()
+	template.UpdatedAt = time.Now()
+
+	_, err := d.conn.ExecContext(ctx, query, template.ID, template.Name, template.Description, template.CreatedAt, template.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("create template: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) GetTemplate(ctx context.Context, id string) (*models.Template, error) {
+	query := `
+		SELECT id, name, description, created_at, updated_at
+		FROM templates
+		WHERE id = $1
+	`
+	template := &models.Template{}
+	err := d.conn.QueryRowContext(ctx, query, id).Scan(
+		&template.ID, &template.Name, &template.Description, &template.CreatedAt, &template.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, db.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get template: %w", err)
+	}
+	return template, nil
+}
+
+func (d *DB) UpdateTemplate(ctx context.Context, id string, update *db.TemplateUpdate) error {
+	query := `
+		UPDATE templates
+		SET name = COALESCE($1, name),
+		    description = COALESCE($2, description),
+		    updated_at = $3
+		WHERE id = $4
+	`
+	_, err := d.conn.ExecContext(ctx, query, update.Name, update.Description, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("update template: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) DeleteTemplate(ctx context.Context, id string) error {
+	query := `DELETE FROM templates WHERE id = $1`
+	_, err := d.conn.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("delete template: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) ListTemplates(ctx context.Context, limit, offset int) ([]*models.Template, int, error) {
+	countQuery := `SELECT COUNT(*) FROM templates`
+	var total int
+	if err := d.conn.QueryRowContext(ctx, countQuery).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count templates: %w", err)
+	}
+
+	query := `
+		SELECT id, name, description, created_at, updated_at
+		FROM templates
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+	rows, err := d.conn.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list templates: %w", err)
+	}
+	defer rows.Close()
+
+	templates := make([]*models.Template, 0)
+	for rows.Next() {
+		template := &models.Template{}
+		if err := rows.Scan(&template.ID, &template.Name, &template.Description, &template.CreatedAt, &template.UpdatedAt); err != nil {
+			return nil, 0, fmt.Errorf("scan template: %w", err)
+		}
+		templates = append(templates, template)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate templates: %w", err)
+	}
+	return templates, total, nil
+}
+
+func (d *DB) CreateTemplateTask(ctx context.Context, task *models.TemplateTask) error {
+	configJSON, err := json.Marshal(task.Config)
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	query := `
+		INSERT INTO template_tasks (id, template_id, name, type, "order", blocking, config, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`
+	task.ID = uuid.New().String()
+	task.CreatedAt = time.Now()
+	task.UpdatedAt = time.Now()
+
+	_, err = d.conn.ExecContext(ctx, query,
+		task.ID, task.TemplateID, task.Name, task.Type, task.Order, task.Blocking, configJSON, task.CreatedAt, task.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("create template task: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) GetTemplateTask(ctx context.Context, id string) (*models.TemplateTask, error) {
+	query := `
+		SELECT id, template_id, name, type, "order", blocking, config, created_at, updated_at
+		FROM template_tasks
+		WHERE id = $1
+	`
+	task := &models.TemplateTask{}
+	var configJSON []byte
+	err := d.conn.QueryRowContext(ctx, query, id).Scan(
+		&task.ID, &task.TemplateID, &task.Name, &task.Type, &task.Order, &task.Blocking, &configJSON, &task.CreatedAt, &task.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, db.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get template task: %w", err)
+	}
+	if err := json.Unmarshal(configJSON, &task.Config); err != nil {
+		return nil, fmt.Errorf("unmarshal config: %w", err)
+	}
+	return task, nil
+}
+
+func (d *DB) ListTemplateTasks(ctx context.Context, templateID string, limit, offset int) ([]*models.TemplateTask, int, error) {
+	countQuery := `SELECT COUNT(*) FROM template_tasks WHERE template_id = $1`
+	var total int
+	if err := d.conn.QueryRowContext(ctx, countQuery, templateID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count template tasks: %w", err)
+	}
+
+	query := `
+		SELECT id, template_id, name, type, "order", blocking, config, created_at, updated_at
+		FROM template_tasks
+		WHERE template_id = $1
+		ORDER BY "order" ASC
+		LIMIT $2 OFFSET $3
+	`
+	rows, err := d.conn.QueryContext(ctx, query, templateID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list template tasks: %w", err)
+	}
+	defer rows.Close()
+
+	tasks := make([]*models.TemplateTask, 0)
+	for rows.Next() {
+		task := &models.TemplateTask{}
+		var configJSON []byte
+		if err := rows.Scan(&task.ID, &task.TemplateID, &task.Name, &task.Type, &task.Order, &task.Blocking, &configJSON, &task.CreatedAt, &task.UpdatedAt); err != nil {
+			return nil, 0, fmt.Errorf("scan template task: %w", err)
+		}
+		if err := json.Unmarshal(configJSON, &task.Config); err != nil {
+			return nil, 0, fmt.Errorf("unmarshal config: %w", err)
+		}
+		tasks = append(tasks, task)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate template tasks: %w", err)
+	}
+	return tasks, total, nil
+}
+
+func (d *DB) GetTemplateTasksForTemplate(ctx context.Context, templateID string) ([]*models.TemplateTask, error) {
+	query := `
+		SELECT id, template_id, name, type, "order", blocking, config, created_at, updated_at
+		FROM template_tasks
+		WHERE template_id = $1
+		ORDER BY "order" ASC
+	`
+	rows, err := d.conn.QueryContext(ctx, query, templateID)
+	if err != nil {
+		return nil, fmt.Errorf("get template tasks: %w", err)
+	}
+	defer rows.Close()
+
+	tasks := make([]*models.TemplateTask, 0)
+	for rows.Next() {
+		task := &models.TemplateTask{}
+		var configJSON []byte
+		if err := rows.Scan(&task.ID, &task.TemplateID, &task.Name, &task.Type, &task.Order, &task.Blocking, &configJSON, &task.CreatedAt, &task.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan template task: %w", err)
+		}
+		if err := json.Unmarshal(configJSON, &task.Config); err != nil {
+			return nil, fmt.Errorf("unmarshal config: %w", err)
+		}
+		tasks = append(tasks, task)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate template tasks: %w", err)
+	}
+	return tasks, nil
+}
+
+func (d *DB) DeleteTemplateTask(ctx context.Context, id string) error {
+	query := `DELETE FROM template_tasks WHERE id = $1`
+	_, err := d.conn.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("delete template task: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID string) error {
+	tx, err := d.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var clusterExists bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM clusters WHERE id = $1)`, clusterID).Scan(&clusterExists); err != nil {
+		return fmt.Errorf("check cluster exists: %w", err)
+	}
+	if !clusterExists {
+		return db.ErrNotFound
+	}
+
+	var templateExists bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM templates WHERE id = $1)`, templateID).Scan(&templateExists); err != nil {
+		return fmt.Errorf("check template exists: %w", err)
+	}
+	if !templateExists {
+		return db.ErrNotFound
+	}
+
+	var maxOrder int
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX("order"), 0) FROM tasks WHERE cluster_id = $1 AND deleted_at IS NULL`, clusterID).Scan(&maxOrder); err != nil {
+		return fmt.Errorf("get max order: %w", err)
+	}
+
+	query := `
+		SELECT id, name, type, "order", blocking, config
+		FROM template_tasks
+		WHERE template_id = $1
+		ORDER BY "order" ASC
+	`
+	rows, err := tx.QueryContext(ctx, query, templateID)
+	if err != nil {
+		return fmt.Errorf("get template tasks: %w", err)
+	}
+
+	type templateTaskData struct {
+		name       string
+		taskType   string
+		order      int
+		blocking   bool
+		configJSON []byte
+	}
+	var templateTasks []templateTaskData
+
+	for rows.Next() {
+		var templateTaskID string
+		var ttd templateTaskData
+
+		if err := rows.Scan(&templateTaskID, &ttd.name, &ttd.taskType, &ttd.order, &ttd.blocking, &ttd.configJSON); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan template task: %w", err)
+		}
+		templateTasks = append(templateTasks, ttd)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate template tasks: %w", err)
+	}
+	rows.Close()
+
+	insertQuery := `
+		INSERT INTO tasks (id, cluster_id, name, type, "order", blocking, config, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`
+
+	now := time.Now()
+	for _, ttd := range templateTasks {
+		newTaskID := uuid.New().String()
+		newOrder := maxOrder + ttd.order
+
+		_, err = tx.ExecContext(ctx, insertQuery,
+			newTaskID, clusterID, ttd.name, ttd.taskType, newOrder, ttd.blocking, ttd.configJSON, now, now)
+		if err != nil {
+			return fmt.Errorf("insert task: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (d *DB) ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template) error {
+	tx, err := d.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var clusterExists bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM clusters WHERE id = $1)`, clusterID).Scan(&clusterExists); err != nil {
+		return fmt.Errorf("check cluster exists: %w", err)
+	}
+	if !clusterExists {
+		return db.ErrNotFound
+	}
+
+	template.ID = uuid.New().String()
+	template.CreatedAt = time.Now()
+	template.UpdatedAt = time.Now()
+
+	insertTemplateQuery := `
+		INSERT INTO templates (id, name, description, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+	_, err = tx.ExecContext(ctx, insertTemplateQuery,
+		template.ID, template.Name, template.Description, template.CreatedAt, template.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("create template: %w", err)
+	}
+
+	query := `
+		SELECT id, name, type, "order", blocking, config
+		FROM tasks
+		WHERE cluster_id = $1 AND deleted_at IS NULL
+		ORDER BY "order" ASC
+	`
+	rows, err := tx.QueryContext(ctx, query, clusterID)
+	if err != nil {
+		return fmt.Errorf("get cluster tasks: %w", err)
+	}
+
+	type taskData struct {
+		name       string
+		taskType   string
+		blocking   bool
+		configJSON []byte
+	}
+	var tasks []taskData
+
+	for rows.Next() {
+		var taskID string
+		var order int
+		var td taskData
+
+		if err := rows.Scan(&taskID, &td.name, &td.taskType, &order, &td.blocking, &td.configJSON); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan task: %w", err)
+		}
+		tasks = append(tasks, td)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate tasks: %w", err)
+	}
+	rows.Close()
+
+	insertTaskQuery := `
+		INSERT INTO template_tasks (id, template_id, name, type, "order", blocking, config, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`
+
+	now := time.Now()
+	for i, td := range tasks {
+		newTaskID := uuid.New().String()
+		newOrder := i + 1
+
+		_, err = tx.ExecContext(ctx, insertTaskQuery,
+			newTaskID, template.ID, td.name, td.taskType, newOrder, td.blocking, td.configJSON, now, now)
+		if err != nil {
+			return fmt.Errorf("insert template task: %w", err)
+		}
+	}
+
+	return tx.Commit()
 }

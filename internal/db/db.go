@@ -53,6 +53,21 @@ type DB interface {
 
 	DeleteExecutionsForDeletedTasksOlderThan(ctx context.Context, threshold time.Time) error
 	DeleteOldExecutionsKeepLastN(ctx context.Context, keepN int) error
+
+	CreateTemplate(ctx context.Context, template *models.Template) error
+	GetTemplate(ctx context.Context, id string) (*models.Template, error)
+	UpdateTemplate(ctx context.Context, id string, update *TemplateUpdate) error
+	DeleteTemplate(ctx context.Context, id string) error
+	ListTemplates(ctx context.Context, limit, offset int) ([]*models.Template, int, error)
+
+	CreateTemplateTask(ctx context.Context, task *models.TemplateTask) error
+	GetTemplateTask(ctx context.Context, id string) (*models.TemplateTask, error)
+	ListTemplateTasks(ctx context.Context, templateID string, limit, offset int) ([]*models.TemplateTask, int, error)
+	GetTemplateTasksForTemplate(ctx context.Context, templateID string) ([]*models.TemplateTask, error)
+	DeleteTemplateTask(ctx context.Context, id string) error
+
+	ImportTemplateToCluster(ctx context.Context, clusterID, templateID string) error
+	ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template) error
 }
 
 type AgentUpdate struct {
@@ -72,4 +87,9 @@ type ExecutionFilters struct {
 	AgentID   *string
 	TaskID    *string
 	Status    *models.ExecutionStatus
+}
+
+type TemplateUpdate struct {
+	Name        *string
+	Description *string
 }

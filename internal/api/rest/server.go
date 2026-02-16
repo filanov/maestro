@@ -626,6 +626,246 @@ func (s *Server) ListDebugTasksByAgent(w http.ResponseWriter, r *http.Request, a
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (s *Server) ListTemplates(w http.ResponseWriter, r *http.Request, params openapi.ListTemplatesParams) {
+	limit, offset := parsePaginationParams(params.Limit, params.Offset)
+
+	templates, total, err := s.db.ListTemplates(r.Context(), limit, offset)
+	if err != nil {
+		slog.Error("failed to list templates", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list templates")
+		return
+	}
+
+	response := struct {
+		Data   []openapi.Template `json:"data"`
+		Total  int                `json:"total"`
+		Limit  int                `json:"limit"`
+		Offset int                `json:"offset"`
+	}{
+		Data:   modelsToOpenAPITemplates(templates),
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (s *Server) CreateTemplate(w http.ResponseWriter, r *http.Request) {
+	var req openapi.CreateTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	template := &models.Template{
+		Name: req.Name,
+	}
+	if req.Description != nil {
+		template.Description = *req.Description
+	}
+
+	if err := s.db.CreateTemplate(r.Context(), template); err != nil {
+		slog.Error("failed to create template", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to create template")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, modelToOpenAPITemplate(template))
+}
+
+func (s *Server) GetTemplate(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	template, err := s.db.GetTemplate(r.Context(), uuidToString(id))
+	if err == db.ErrNotFound {
+		writeError(w, http.StatusNotFound, "template not found")
+		return
+	}
+	if err != nil {
+		slog.Error("failed to get template", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get template")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, modelToOpenAPITemplate(template))
+}
+
+func (s *Server) UpdateTemplate(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var req openapi.UpdateTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	update := &db.TemplateUpdate{
+		Name:        req.Name,
+		Description: req.Description,
+	}
+
+	if err := s.db.UpdateTemplate(r.Context(), uuidToString(id), update); err != nil {
+		slog.Error("failed to update template", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to update template")
+		return
+	}
+
+	template, err := s.db.GetTemplate(r.Context(), uuidToString(id))
+	if err != nil {
+		slog.Error("failed to get updated template", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get updated template")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, modelToOpenAPITemplate(template))
+}
+
+func (s *Server) DeleteTemplate(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	if err := s.db.DeleteTemplate(r.Context(), uuidToString(id)); err != nil {
+		slog.Error("failed to delete template", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to delete template")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) ListTemplateTasks(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params openapi.ListTemplateTasksParams) {
+	limit, offset := parsePaginationParams(params.Limit, params.Offset)
+
+	tasks, total, err := s.db.ListTemplateTasks(r.Context(), uuidToString(id), limit, offset)
+	if err != nil {
+		slog.Error("failed to list template tasks", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list template tasks")
+		return
+	}
+
+	response := struct {
+		Data   []openapi.TemplateTask `json:"data"`
+		Total  int                    `json:"total"`
+		Limit  int                    `json:"limit"`
+		Offset int                    `json:"offset"`
+	}{
+		Data:   modelsToOpenAPITemplateTasks(tasks),
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (s *Server) CreateTemplateTask(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var req openapi.CreateTemplateTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	existingTasks, err := s.db.GetTemplateTasksForTemplate(r.Context(), uuidToString(id))
+	if err != nil {
+		slog.Error("failed to get existing template tasks", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get existing template tasks")
+		return
+	}
+
+	maxOrder := 0
+	for _, task := range existingTasks {
+		if task.Order > maxOrder {
+			maxOrder = task.Order
+		}
+	}
+
+	blocking := false
+	if req.Blocking != nil {
+		blocking = *req.Blocking
+	}
+
+	timeout := 300 * time.Second
+	if req.Config.TimeoutSeconds != nil {
+		timeout = time.Duration(*req.Config.TimeoutSeconds) * time.Second
+	}
+
+	task := &models.TemplateTask{
+		TemplateID: uuidToString(id),
+		Name:       req.Name,
+		Type:       models.TaskType(req.Type),
+		Order:      maxOrder + 1,
+		Blocking:   blocking,
+		Config: models.TaskConfig{
+			Command:    req.Config.Command,
+			Timeout:    timeout,
+			WorkingDir: stringPtrToString(req.Config.WorkingDir),
+		},
+	}
+
+	if err := s.db.CreateTemplateTask(r.Context(), task); err != nil {
+		slog.Error("failed to create template task", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to create template task")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, modelToOpenAPITemplateTask(task))
+}
+
+func (s *Server) ImportTemplate(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var req openapi.ImportTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	templateTasks, err := s.db.GetTemplateTasksForTemplate(r.Context(), uuidToString(req.TemplateId))
+	if err == db.ErrNotFound {
+		writeError(w, http.StatusNotFound, "template not found")
+		return
+	}
+	if err != nil {
+		slog.Error("failed to get template tasks", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get template tasks")
+		return
+	}
+
+	if err := s.db.ImportTemplateToCluster(r.Context(), uuidToString(id), uuidToString(req.TemplateId)); err == db.ErrNotFound {
+		writeError(w, http.StatusNotFound, "cluster or template not found")
+		return
+	} else if err != nil {
+		slog.Error("failed to import template", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to import template")
+		return
+	}
+
+	response := openapi.ImportTemplateResponse{
+		Message:       "template imported successfully",
+		TasksImported: len(templateTasks),
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (s *Server) ExportTemplate(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var req openapi.ExportTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	template := &models.Template{
+		Name: req.TemplateName,
+	}
+	if req.TemplateDescription != nil {
+		template.Description = *req.TemplateDescription
+	}
+
+	if err := s.db.ExportClusterToTemplate(r.Context(), uuidToString(id), template); err == db.ErrNotFound {
+		writeError(w, http.StatusNotFound, "cluster not found")
+		return
+	} else if err != nil {
+		slog.Error("failed to export cluster to template", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to export cluster to template")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, modelToOpenAPITemplate(template))
+}
+
 func parsePaginationParams(limitPtr *int, offsetPtr *int) (limit, offset int) {
 	limit = 50
 	offset = 0

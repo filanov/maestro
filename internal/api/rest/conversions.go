@@ -176,3 +176,70 @@ func taskConfigFromOpenAPI(config openapi.TaskConfig) models.TaskConfig {
 func ptr[T any](v T) *T {
 	return &v
 }
+
+// Helper to convert string pointer to string
+func stringPtrToString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// Template conversions
+
+func modelToOpenAPITemplate(m *models.Template) openapi.Template {
+	var description *string
+	if m.Description != "" {
+		description = &m.Description
+	}
+
+	return openapi.Template{
+		Id:          stringToUUID(m.ID),
+		Name:        m.Name,
+		Description: description,
+		CreatedAt:   m.CreatedAt,
+		UpdatedAt:   m.UpdatedAt,
+	}
+}
+
+func modelsToOpenAPITemplates(models []*models.Template) []openapi.Template {
+	result := make([]openapi.Template, len(models))
+	for i, m := range models {
+		result[i] = modelToOpenAPITemplate(m)
+	}
+	return result
+}
+
+// Template Task conversions
+
+func modelToOpenAPITemplateTask(m *models.TemplateTask) openapi.TemplateTask {
+	timeoutSeconds := int(m.Config.Timeout.Seconds())
+	var workingDir *string
+	if m.Config.WorkingDir != "" {
+		workingDir = &m.Config.WorkingDir
+	}
+
+	return openapi.TemplateTask{
+		Id:         stringToUUID(m.ID),
+		TemplateId: stringToUUID(m.TemplateID),
+		Name:       m.Name,
+		Type:       openapi.TemplateTaskType(m.Type),
+		Order:      m.Order,
+		Blocking:   &m.Blocking,
+		Config: openapi.TaskConfig{
+			Command:        m.Config.Command,
+			TimeoutSeconds: &timeoutSeconds,
+			WorkingDir:     workingDir,
+		},
+		CreatedAt: m.CreatedAt,
+		UpdatedAt: m.UpdatedAt,
+	}
+}
+
+func modelsToOpenAPITemplateTasks(models []*models.TemplateTask) []openapi.TemplateTask {
+	result := make([]openapi.TemplateTask, len(models))
+	for i, m := range models {
+		result[i] = modelToOpenAPITemplateTask(m)
+	}
+	return result
+}

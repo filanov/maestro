@@ -31,6 +31,11 @@ const (
 	CreateTaskRequestTypeExec CreateTaskRequestType = "exec"
 )
 
+// Defines values for CreateTemplateTaskRequestType.
+const (
+	CreateTemplateTaskRequestTypeExec CreateTemplateTaskRequestType = "exec"
+)
+
 // Defines values for DebugTaskStatus.
 const (
 	DebugTaskStatusFailed  DebugTaskStatus = "failed"
@@ -52,6 +57,11 @@ const (
 	TaskExecutionStatusRunning TaskExecutionStatus = "running"
 	TaskExecutionStatusSkipped TaskExecutionStatus = "skipped"
 	TaskExecutionStatusSuccess TaskExecutionStatus = "success"
+)
+
+// Defines values for TemplateTaskType.
+const (
+	TemplateTaskTypeExec TemplateTaskType = "exec"
 )
 
 // Defines values for ListExecutionsParamsStatus.
@@ -109,6 +119,23 @@ type CreateTaskRequest struct {
 // CreateTaskRequestType defines model for CreateTaskRequest.Type.
 type CreateTaskRequestType string
 
+// CreateTemplateRequest defines model for CreateTemplateRequest.
+type CreateTemplateRequest struct {
+	Description *string `json:"description,omitempty"`
+	Name        string  `json:"name"`
+}
+
+// CreateTemplateTaskRequest defines model for CreateTemplateTaskRequest.
+type CreateTemplateTaskRequest struct {
+	Blocking *bool                         `json:"blocking,omitempty"`
+	Config   TaskConfig                    `json:"config"`
+	Name     string                        `json:"name"`
+	Type     CreateTemplateTaskRequestType `json:"type"`
+}
+
+// CreateTemplateTaskRequestType defines model for CreateTemplateTaskRequest.Type.
+type CreateTemplateTaskRequestType string
+
 // DebugTask defines model for DebugTask.
 type DebugTask struct {
 	AgentId     openapi_types.UUID `json:"agent_id"`
@@ -131,9 +158,26 @@ type ErrorResponse struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// ExportTemplateRequest defines model for ExportTemplateRequest.
+type ExportTemplateRequest struct {
+	TemplateDescription *string `json:"template_description,omitempty"`
+	TemplateName        string  `json:"template_name"`
+}
+
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
 	Status *string `json:"status,omitempty"`
+}
+
+// ImportTemplateRequest defines model for ImportTemplateRequest.
+type ImportTemplateRequest struct {
+	TemplateId openapi_types.UUID `json:"template_id"`
+}
+
+// ImportTemplateResponse defines model for ImportTemplateResponse.
+type ImportTemplateResponse struct {
+	Message       string `json:"message"`
+	TasksImported int    `json:"tasks_imported"`
 }
 
 // PaginatedResponse defines model for PaginatedResponse.
@@ -189,11 +233,42 @@ type TaskExecution struct {
 // TaskExecutionStatus defines model for TaskExecution.Status.
 type TaskExecutionStatus string
 
+// Template defines model for Template.
+type Template struct {
+	CreatedAt   time.Time          `json:"created_at"`
+	Description *string            `json:"description,omitempty"`
+	Id          openapi_types.UUID `json:"id"`
+	Name        string             `json:"name"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+// TemplateTask defines model for TemplateTask.
+type TemplateTask struct {
+	Blocking   *bool              `json:"blocking,omitempty"`
+	Config     TaskConfig         `json:"config"`
+	CreatedAt  time.Time          `json:"created_at"`
+	Id         openapi_types.UUID `json:"id"`
+	Name       string             `json:"name"`
+	Order      int                `json:"order"`
+	TemplateId openapi_types.UUID `json:"template_id"`
+	Type       TemplateTaskType   `json:"type"`
+	UpdatedAt  time.Time          `json:"updated_at"`
+}
+
+// TemplateTaskType defines model for TemplateTask.Type.
+type TemplateTaskType string
+
 // UpdateTaskRequest defines model for UpdateTaskRequest.
 type UpdateTaskRequest struct {
 	Blocking *bool       `json:"blocking,omitempty"`
 	Config   *TaskConfig `json:"config,omitempty"`
 	Name     *string     `json:"name,omitempty"`
+}
+
+// UpdateTemplateRequest defines model for UpdateTemplateRequest.
+type UpdateTemplateRequest struct {
+	Description *string `json:"description,omitempty"`
+	Name        *string `json:"name,omitempty"`
 }
 
 // ID defines model for ID.
@@ -256,8 +331,26 @@ type ListTasksParams struct {
 	Offset         *Offset            `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListTemplatesParams defines parameters for ListTemplates.
+type ListTemplatesParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListTemplateTasksParams defines parameters for ListTemplateTasks.
+type ListTemplateTasksParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // CreateClusterJSONRequestBody defines body for CreateCluster for application/json ContentType.
 type CreateClusterJSONRequestBody = CreateClusterRequest
+
+// ExportTemplateJSONRequestBody defines body for ExportTemplate for application/json ContentType.
+type ExportTemplateJSONRequestBody = ExportTemplateRequest
+
+// ImportTemplateJSONRequestBody defines body for ImportTemplate for application/json ContentType.
+type ImportTemplateJSONRequestBody = ImportTemplateRequest
 
 // CreateDebugTaskJSONRequestBody defines body for CreateDebugTask for application/json ContentType.
 type CreateDebugTaskJSONRequestBody = CreateDebugTaskRequest
@@ -270,6 +363,15 @@ type ReorderTasksJSONRequestBody = ReorderTasksRequest
 
 // UpdateTaskJSONRequestBody defines body for UpdateTask for application/json ContentType.
 type UpdateTaskJSONRequestBody = UpdateTaskRequest
+
+// CreateTemplateJSONRequestBody defines body for CreateTemplate for application/json ContentType.
+type CreateTemplateJSONRequestBody = CreateTemplateRequest
+
+// UpdateTemplateJSONRequestBody defines body for UpdateTemplate for application/json ContentType.
+type UpdateTemplateJSONRequestBody = UpdateTemplateRequest
+
+// CreateTemplateTaskJSONRequestBody defines body for CreateTemplateTask for application/json ContentType.
+type CreateTemplateTaskJSONRequestBody = CreateTemplateTaskRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -300,6 +402,12 @@ type ServerInterface interface {
 	// Get cluster by ID
 	// (GET /api/v1/clusters/{id})
 	GetCluster(w http.ResponseWriter, r *http.Request, id ID)
+	// Export cluster tasks to template
+	// (POST /api/v1/clusters/{id}/export-template)
+	ExportTemplate(w http.ResponseWriter, r *http.Request, id ID)
+	// Import template to cluster
+	// (POST /api/v1/clusters/{id}/import-template)
+	ImportTemplate(w http.ResponseWriter, r *http.Request, id ID)
 	// Create a debug task
 	// (POST /api/v1/debug-tasks)
 	CreateDebugTask(w http.ResponseWriter, r *http.Request)
@@ -333,6 +441,27 @@ type ServerInterface interface {
 	// Reset task executions
 	// (POST /api/v1/tasks/{id}/reset-executions)
 	ResetTaskExecutions(w http.ResponseWriter, r *http.Request, id ID)
+	// List all templates
+	// (GET /api/v1/templates)
+	ListTemplates(w http.ResponseWriter, r *http.Request, params ListTemplatesParams)
+	// Create a new template
+	// (POST /api/v1/templates)
+	CreateTemplate(w http.ResponseWriter, r *http.Request)
+	// Delete template
+	// (DELETE /api/v1/templates/{id})
+	DeleteTemplate(w http.ResponseWriter, r *http.Request, id ID)
+	// Get template by ID
+	// (GET /api/v1/templates/{id})
+	GetTemplate(w http.ResponseWriter, r *http.Request, id ID)
+	// Update template
+	// (PUT /api/v1/templates/{id})
+	UpdateTemplate(w http.ResponseWriter, r *http.Request, id ID)
+	// List tasks in a template
+	// (GET /api/v1/templates/{id}/tasks)
+	ListTemplateTasks(w http.ResponseWriter, r *http.Request, id ID, params ListTemplateTasksParams)
+	// Add a task to template
+	// (POST /api/v1/templates/{id}/tasks)
+	CreateTemplateTask(w http.ResponseWriter, r *http.Request, id ID)
 	// Health check
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -393,6 +522,18 @@ func (_ Unimplemented) DeleteCluster(w http.ResponseWriter, r *http.Request, id 
 // Get cluster by ID
 // (GET /api/v1/clusters/{id})
 func (_ Unimplemented) GetCluster(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Export cluster tasks to template
+// (POST /api/v1/clusters/{id}/export-template)
+func (_ Unimplemented) ExportTemplate(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Import template to cluster
+// (POST /api/v1/clusters/{id}/import-template)
+func (_ Unimplemented) ImportTemplate(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -459,6 +600,48 @@ func (_ Unimplemented) UpdateTask(w http.ResponseWriter, r *http.Request, id ID)
 // Reset task executions
 // (POST /api/v1/tasks/{id}/reset-executions)
 func (_ Unimplemented) ResetTaskExecutions(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List all templates
+// (GET /api/v1/templates)
+func (_ Unimplemented) ListTemplates(w http.ResponseWriter, r *http.Request, params ListTemplatesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a new template
+// (POST /api/v1/templates)
+func (_ Unimplemented) CreateTemplate(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete template
+// (DELETE /api/v1/templates/{id})
+func (_ Unimplemented) DeleteTemplate(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get template by ID
+// (GET /api/v1/templates/{id})
+func (_ Unimplemented) GetTemplate(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update template
+// (PUT /api/v1/templates/{id})
+func (_ Unimplemented) UpdateTemplate(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List tasks in a template
+// (GET /api/v1/templates/{id}/tasks)
+func (_ Unimplemented) ListTemplateTasks(w http.ResponseWriter, r *http.Request, id ID, params ListTemplateTasksParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Add a task to template
+// (POST /api/v1/templates/{id}/tasks)
+func (_ Unimplemented) CreateTemplateTask(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -749,6 +932,56 @@ func (siw *ServerInterfaceWrapper) GetCluster(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCluster(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportTemplate operation middleware
+func (siw *ServerInterfaceWrapper) ExportTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportTemplate(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ImportTemplate operation middleware
+func (siw *ServerInterfaceWrapper) ImportTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportTemplate(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1075,6 +1308,199 @@ func (siw *ServerInterfaceWrapper) ResetTaskExecutions(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// ListTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListTemplates(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTemplatesParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTemplates(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTemplate operation middleware
+func (siw *ServerInterfaceWrapper) CreateTemplate(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTemplate(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTemplate operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTemplate(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTemplate operation middleware
+func (siw *ServerInterfaceWrapper) GetTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTemplate(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateTemplate operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateTemplate(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTemplateTasks operation middleware
+func (siw *ServerInterfaceWrapper) ListTemplateTasks(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTemplateTasksParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTemplateTasks(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTemplateTask operation middleware
+func (siw *ServerInterfaceWrapper) CreateTemplateTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTemplateTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
 
@@ -1230,6 +1656,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/clusters/{id}", wrapper.GetCluster)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/clusters/{id}/export-template", wrapper.ExportTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/clusters/{id}/import-template", wrapper.ImportTemplate)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/debug-tasks", wrapper.CreateDebugTask)
 	})
 	r.Group(func(r chi.Router) {
@@ -1263,6 +1695,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/tasks/{id}/reset-executions", wrapper.ResetTaskExecutions)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/templates", wrapper.ListTemplates)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/templates", wrapper.CreateTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/templates/{id}", wrapper.DeleteTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/templates/{id}", wrapper.GetTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/templates/{id}", wrapper.UpdateTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/templates/{id}/tasks", wrapper.ListTemplateTasks)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/templates/{id}/tasks", wrapper.CreateTemplateTask)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health", wrapper.GetHealth)
 	})
 
@@ -1272,39 +1725,47 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

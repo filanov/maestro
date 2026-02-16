@@ -370,3 +370,35 @@ func (m *MockDB) DeleteExecutionsForDeletedTasksOlderThan(ctx context.Context, t
 	return nil
 }
 func (m *MockDB) DeleteOldExecutionsKeepLastN(ctx context.Context, keepN int) error { return nil }
+func (m *MockDB) CreateTemplate(ctx context.Context, template *models.Template) error {
+	return nil
+}
+func (m *MockDB) GetTemplate(ctx context.Context, id string) (*models.Template, error) {
+	return nil, nil
+}
+func (m *MockDB) UpdateTemplate(ctx context.Context, id string, update *db.TemplateUpdate) error {
+	return nil
+}
+func (m *MockDB) DeleteTemplate(ctx context.Context, id string) error { return nil }
+func (m *MockDB) ListTemplates(ctx context.Context, limit, offset int) ([]*models.Template, int, error) {
+	return nil, 0, nil
+}
+func (m *MockDB) CreateTemplateTask(ctx context.Context, task *models.TemplateTask) error {
+	return nil
+}
+func (m *MockDB) GetTemplateTask(ctx context.Context, id string) (*models.TemplateTask, error) {
+	return nil, nil
+}
+func (m *MockDB) ListTemplateTasks(ctx context.Context, templateID string, limit, offset int) ([]*models.TemplateTask, int, error) {
+	return nil, 0, nil
+}
+func (m *MockDB) GetTemplateTasksForTemplate(ctx context.Context, templateID string) ([]*models.TemplateTask, error) {
+	return nil, nil
+}
+func (m *MockDB) DeleteTemplateTask(ctx context.Context, id string) error { return nil }
+func (m *MockDB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID string) error {
+	return nil
+}
+func (m *MockDB) ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template) error {
+	return nil
+}

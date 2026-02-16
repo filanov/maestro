@@ -48,6 +48,7 @@ CREATE TABLE task_executions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    cluster_id UUID NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
     status VARCHAR(50) NOT NULL,
     output TEXT,
     exit_code INT,
@@ -59,6 +60,7 @@ CREATE TABLE task_executions (
 
 CREATE INDEX idx_executions_agent_task ON task_executions(agent_id, task_id);
 CREATE INDEX idx_executions_task ON task_executions(task_id);
+CREATE INDEX idx_executions_cluster ON task_executions(cluster_id);
 CREATE INDEX idx_executions_status ON task_executions(status);
 
 -- Debug Tasks

@@ -92,6 +92,26 @@ type DebugTask struct {
 	Error      string
 }
 
+type Template struct {
+	ID          string
+	Name        string
+	Description string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type TemplateTask struct {
+	ID         string
+	TemplateID string
+	Name       string
+	Type       TaskType
+	Order      int
+	Blocking   bool
+	Config     TaskConfig
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
 func GenerateAgentID(clusterID, hostname string) string {
 	namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 	data := clusterID + ":" + hostname

@@ -18,7 +18,8 @@ help:
 	@echo "  make all                - Build everything (proto, binaries, lint)"
 	@echo "  make proto              - Generate protobuf files"
 	@echo "  make generate-api       - Generate REST API code from OpenAPI spec"
-	@echo "  make generate           - Generate all (proto + REST API)"
+	@echo "  make generate-mocks     - Generate mocks from interfaces"
+	@echo "  make generate           - Generate all (proto + REST API + mocks)"
 	@echo "  make build              - Build server and agent binaries"
 	@echo "  make clean              - Clean generated files and binaries"
 	@echo ""
@@ -94,14 +95,21 @@ generate-api:
 	@$(DOCKER_RUN) sh -c "oapi-codegen -config .oapi-codegen.yaml api/openapi/swagger.json"
 	@echo "Generated: internal/api/rest/openapi/generated.go"
 
-# Generate all (proto + REST API)
-generate: proto generate-api
+# Mock generation from interfaces
+generate-mocks:
+	@echo "Generating mocks from interfaces (in container)..."
+	@$(DOCKER_RUN) sh -c "go generate ./internal/db/..."
+	@echo "Generated: internal/db/mock_db.go"
+
+# Generate all (proto + REST API + mocks)
+generate: proto generate-api generate-mocks
 
 # Build targets
 clean:
 	@echo "Cleaning generated files..."
 	@rm -f api/proto/agent/v1/*.pb.go
 	@rm -f api/openapi/*.swagger.json
+	@rm -f internal/db/mock_db.go
 	@rm -rf internal/api/rest/openapi/
 	@rm -rf bin/
 	@rm -f coverage.out coverage.html

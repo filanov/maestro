@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"google.golang.org/grpc/codes"
@@ -18,21 +19,22 @@ import (
 var _ = Describe("gRPC Server", func() {
 	var (
 		server    *grpc.Server
-		mockDB    *MockDB
+		mockDB    *db.MockDB
+		mockCtrl  *gomock.Controller
 		ctx       context.Context
 		clusterID string
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		mockDB = NewMockDB()
+		mockCtrl = gomock.NewController(GinkgoT())
+		mockDB = db.NewMockDB(mockCtrl)
 		server = grpc.NewServer(mockDB)
 		clusterID = "cluster-123"
+	})
 
-		mockDB.clusters[clusterID] = &models.Cluster{
-			ID:   clusterID,
-			Name: "Test Cluster",
-		}
+	AfterEach(func() {
+		mockCtrl.Finish()
 	})
 
 	Describe("Register", func() {
@@ -44,12 +46,23 @@ var _ = Describe("gRPC Server", func() {
 				Hostname:  "worker-01",
 			}
 
+			cluster := &models.Cluster{
+				ID:   clusterID,
+				Name: "Test Cluster",
+			}
+
+			mockDB.EXPECT().GetCluster(ctx, clusterID).Return(cluster, nil)
+			mockDB.EXPECT().GetAgent(ctx, agentID).Return(nil, db.ErrNotFound)
+			mockDB.EXPECT().CreateAgent(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, agent *models.Agent) error {
+				Expect(agent.ID).To(Equal(agentID))
+				Expect(agent.ClusterID).To(Equal(clusterID))
+				Expect(agent.Hostname).To(Equal("worker-01"))
+				return nil
+			})
+
 			resp, err := server.Register(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.GetReset_()).To(BeFalse())
-
-			Expect(mockDB.agents).To(HaveKey(agentID))
-			Expect(mockDB.agents[agentID].Hostname).To(Equal("worker-01"))
 		})
 
 		It("should return reset=true for re-registration", func() {
@@ -59,12 +72,10 @@ var _ = Describe("gRPC Server", func() {
 				ClusterID: clusterID,
 				Hostname:  "worker-01",
 			}
-			mockDB.agents[agent.ID] = agent
-			mockDB.executions = append(mockDB.executions, &models.TaskExecution{
-				AgentID: agent.ID,
-				TaskID:  "task-1",
-				Status:  models.ExecutionStatusSuccess,
-			})
+			cluster := &models.Cluster{
+				ID:   clusterID,
+				Name: "Test Cluster",
+			}
 
 			req := &pb.RegisterRequest{
 				AgentId:   agentID,
@@ -72,10 +83,14 @@ var _ = Describe("gRPC Server", func() {
 				Hostname:  "worker-01",
 			}
 
+			mockDB.EXPECT().GetCluster(ctx, clusterID).Return(cluster, nil)
+			mockDB.EXPECT().GetAgent(ctx, agentID).Return(agent, nil)
+			mockDB.EXPECT().DeleteAllExecutionsForAgent(ctx, agentID).Return(nil)
+			mockDB.EXPECT().UpdateAgent(ctx, agentID, gomock.Any()).Return(nil)
+
 			resp, err := server.Register(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.GetReset_()).To(BeTrue())
-			Expect(mockDB.executionDeleted).To(BeTrue())
 		})
 
 		It("should return NotFound for non-existent cluster", func() {
@@ -84,6 +99,8 @@ var _ = Describe("gRPC Server", func() {
 				ClusterId: "non-existent",
 				Hostname:  "worker-01",
 			}
+
+			mockDB.EXPECT().GetCluster(ctx, "non-existent").Return(nil, db.ErrNotFound)
 
 			_, err := server.Register(ctx, req)
 			Expect(err).To(HaveOccurred())
@@ -108,25 +125,33 @@ var _ = Describe("gRPC Server", func() {
 
 		BeforeEach(func() {
 			agentID = "agent-789"
-			mockDB.agents[agentID] = &models.Agent{
+		})
+
+		It("should update heartbeat timestamp", func() {
+			agent := &models.Agent{
 				ID:            agentID,
 				ClusterID:     clusterID,
 				Status:        models.AgentStatusActive,
 				LastHeartbeat: time.Now().Add(-2 * time.Minute),
 			}
-		})
 
-		It("should update heartbeat timestamp", func() {
 			req := &pb.HeartbeatRequest{AgentId: agentID}
+
+			mockDB.EXPECT().GetAgent(ctx, agentID).Return(agent, nil)
+			mockDB.EXPECT().UpdateAgent(ctx, agentID, gomock.Any()).DoAndReturn(func(ctx context.Context, id string, update *db.AgentUpdate) error {
+				Expect(update.LastHeartbeat).NotTo(BeNil())
+				return nil
+			})
 
 			resp, err := server.Heartbeat(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.Acknowledged).To(BeTrue())
-			Expect(mockDB.heartbeatUpdated).To(BeTrue())
 		})
 
 		It("should return NotFound for non-existent agent", func() {
 			req := &pb.HeartbeatRequest{AgentId: "non-existent"}
+
+			mockDB.EXPECT().GetAgent(ctx, "non-existent").Return(nil, db.ErrNotFound)
 
 			_, err := server.Heartbeat(ctx, req)
 			Expect(err).To(HaveOccurred())
@@ -139,12 +164,15 @@ var _ = Describe("gRPC Server", func() {
 
 		BeforeEach(func() {
 			agentID = "agent-poll"
-			mockDB.agents[agentID] = &models.Agent{
+		})
+
+		It("should return pending tasks", func() {
+			agent := &models.Agent{
 				ID:        agentID,
 				ClusterID: clusterID,
 			}
 
-			mockDB.tasks = []*models.Task{
+			tasks := []*models.Task{
 				{
 					ID:        "task-1",
 					ClusterID: clusterID,
@@ -158,10 +186,12 @@ var _ = Describe("gRPC Server", func() {
 					},
 				},
 			}
-		})
 
-		It("should return pending tasks", func() {
 			req := &pb.PollTasksRequest{AgentId: agentID}
+
+			mockDB.EXPECT().GetAgent(ctx, agentID).Return(agent, nil).Times(2)
+			mockDB.EXPECT().GetTasksForCluster(ctx, clusterID).Return(tasks, nil)
+			mockDB.EXPECT().GetExecutionsForAgent(ctx, agentID).Return([]*models.TaskExecution{}, nil)
 
 			resp, err := server.PollTasks(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
@@ -171,6 +201,8 @@ var _ = Describe("gRPC Server", func() {
 
 		It("should return NotFound for non-existent agent", func() {
 			req := &pb.PollTasksRequest{AgentId: "non-existent"}
+
+			mockDB.EXPECT().GetAgent(ctx, "non-existent").Return(nil, db.ErrNotFound)
 
 			_, err := server.PollTasks(ctx, req)
 			Expect(err).To(HaveOccurred())
@@ -184,24 +216,22 @@ var _ = Describe("gRPC Server", func() {
 		BeforeEach(func() {
 			agentID = "agent-report"
 			taskID = "task-report"
+		})
 
-			mockDB.agents[agentID] = &models.Agent{
+		It("should accept execution report", func() {
+			agent := &models.Agent{
 				ID:        agentID,
 				ClusterID: clusterID,
 			}
 
-			mockDB.tasks = []*models.Task{
-				{
-					ID:        taskID,
-					ClusterID: clusterID,
-					Name:      "Report Task",
-					Type:      models.TaskTypeExec,
-					Config:    models.TaskConfig{Command: "echo test"},
-				},
+			task := &models.Task{
+				ID:        taskID,
+				ClusterID: clusterID,
+				Name:      "Report Task",
+				Type:      models.TaskTypeExec,
+				Config:    models.TaskConfig{Command: "echo test"},
 			}
-		})
 
-		It("should accept execution report", func() {
 			req := &pb.ReportTaskExecutionRequest{
 				AgentId:  agentID,
 				TaskId:   taskID,
@@ -210,10 +240,19 @@ var _ = Describe("gRPC Server", func() {
 				ExitCode: 0,
 			}
 
+			mockDB.EXPECT().GetAgent(ctx, agentID).Return(agent, nil)
+			mockDB.EXPECT().GetTask(ctx, taskID).Return(task, nil)
+			mockDB.EXPECT().UpsertExecution(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, execution *models.TaskExecution) error {
+				Expect(execution.AgentID).To(Equal(agentID))
+				Expect(execution.TaskID).To(Equal(taskID))
+				Expect(execution.Status).To(Equal(models.ExecutionStatusSuccess))
+				Expect(execution.Output).To(Equal("test output"))
+				return nil
+			})
+
 			resp, err := server.ReportTaskExecution(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.Acknowledged).To(BeTrue())
-			Expect(mockDB.executionReported).To(BeTrue())
 		})
 
 		It("should return NotFound for non-existent agent", func() {
@@ -224,187 +263,11 @@ var _ = Describe("gRPC Server", func() {
 				ExitCode: 0,
 			}
 
+			mockDB.EXPECT().GetAgent(ctx, "non-existent").Return(nil, db.ErrNotFound)
+
 			_, err := server.ReportTaskExecution(ctx, req)
 			Expect(err).To(HaveOccurred())
 			Expect(status.Code(err)).To(Equal(codes.NotFound))
 		})
 	})
 })
-
-type MockDB struct {
-	clusters          map[string]*models.Cluster
-	agents            map[string]*models.Agent
-	tasks             []*models.Task
-	executions        []*models.TaskExecution
-	heartbeatUpdated  bool
-	executionDeleted  bool
-	executionReported bool
-}
-
-func NewMockDB() *MockDB {
-	return &MockDB{
-		clusters:   make(map[string]*models.Cluster),
-		agents:     make(map[string]*models.Agent),
-		tasks:      []*models.Task{},
-		executions: []*models.TaskExecution{},
-	}
-}
-
-func (m *MockDB) GetCluster(ctx context.Context, id string) (*models.Cluster, error) {
-	if cluster, ok := m.clusters[id]; ok {
-		return cluster, nil
-	}
-	return nil, db.ErrNotFound
-}
-
-func (m *MockDB) GetAgent(ctx context.Context, id string) (*models.Agent, error) {
-	if agent, ok := m.agents[id]; ok {
-		return agent, nil
-	}
-	return nil, db.ErrNotFound
-}
-
-func (m *MockDB) CreateAgent(ctx context.Context, agent *models.Agent) error {
-	m.agents[agent.ID] = agent
-	return nil
-}
-
-func (m *MockDB) UpdateAgent(ctx context.Context, id string, update *db.AgentUpdate) error {
-	if _, ok := m.agents[id]; !ok {
-		return db.ErrNotFound
-	}
-	m.heartbeatUpdated = true
-	return nil
-}
-
-func (m *MockDB) DeleteAllExecutionsForAgent(ctx context.Context, agentID string) error {
-	m.executionDeleted = true
-	return nil
-}
-
-func (m *MockDB) GetTasksForCluster(ctx context.Context, clusterID string) ([]*models.Task, error) {
-	var result []*models.Task
-	for _, task := range m.tasks {
-		if task.ClusterID == clusterID {
-			result = append(result, task)
-		}
-	}
-	return result, nil
-}
-
-func (m *MockDB) GetExecutionsForAgent(ctx context.Context, agentID string) ([]*models.TaskExecution, error) {
-	return []*models.TaskExecution{}, nil
-}
-
-func (m *MockDB) GetTask(ctx context.Context, id string) (*models.Task, error) {
-	for _, task := range m.tasks {
-		if task.ID == id {
-			return task, nil
-		}
-	}
-	return nil, db.ErrNotFound
-}
-
-func (m *MockDB) UpsertExecution(ctx context.Context, execution *models.TaskExecution) error {
-	m.executionReported = true
-	return nil
-}
-
-func (m *MockDB) GetPendingDebugTasksForAgent(ctx context.Context, agentID string) ([]*models.DebugTask, error) {
-	return []*models.DebugTask{}, nil
-}
-
-func (m *MockDB) GetDebugTask(ctx context.Context, id string) (*models.DebugTask, error) {
-	return nil, db.ErrNotFound
-}
-
-func (m *MockDB) UpdateDebugTaskExecution(ctx context.Context, id string, status models.ExecutionStatus, output string, exitCode *int, error string) error {
-	return nil
-}
-
-func (m *MockDB) Close() error                                                     { return nil }
-func (m *MockDB) CreateCluster(ctx context.Context, cluster *models.Cluster) error { return nil }
-func (m *MockDB) ListClusters(ctx context.Context, limit, offset int) ([]*models.Cluster, int, error) {
-	return nil, 0, nil
-}
-func (m *MockDB) DeleteCluster(ctx context.Context, id string) error { return nil }
-func (m *MockDB) ListAgents(ctx context.Context, clusterID string, status *models.AgentStatus, limit, offset int) ([]*models.Agent, int, error) {
-	return nil, 0, nil
-}
-func (m *MockDB) DeleteAgent(ctx context.Context, id string) error { return nil }
-func (m *MockDB) FindAgentsWithHeartbeatBefore(ctx context.Context, threshold time.Time) ([]*models.Agent, error) {
-	return nil, nil
-}
-func (m *MockDB) UpdateAgentStatus(ctx context.Context, id string, status models.AgentStatus) error {
-	return nil
-}
-func (m *MockDB) CreateTask(ctx context.Context, task *models.Task) error                { return nil }
-func (m *MockDB) UpdateTask(ctx context.Context, id string, update *db.TaskUpdate) error { return nil }
-func (m *MockDB) DeleteTask(ctx context.Context, id string) error                        { return nil }
-func (m *MockDB) ListTasks(ctx context.Context, clusterID string, includeDeleted bool, limit, offset int) ([]*models.Task, int, error) {
-	return nil, 0, nil
-}
-func (m *MockDB) ReorderTasks(ctx context.Context, clusterID string, taskIDs []string) error {
-	return nil
-}
-func (m *MockDB) CreateExecution(ctx context.Context, execution *models.TaskExecution) error {
-	return nil
-}
-func (m *MockDB) GetExecution(ctx context.Context, id string) (*models.TaskExecution, error) {
-	return nil, nil
-}
-func (m *MockDB) ListExecutions(ctx context.Context, filters db.ExecutionFilters, limit, offset int) ([]*models.TaskExecution, int, error) {
-	return nil, 0, nil
-}
-func (m *MockDB) FailRunningTasksForAgent(ctx context.Context, agentID string) error { return nil }
-func (m *MockDB) ResetExecutionsForTask(ctx context.Context, taskID string) error    { return nil }
-func (m *MockDB) CreateDebugTask(ctx context.Context, task *models.DebugTask) error  { return nil }
-func (m *MockDB) ListDebugTasks(ctx context.Context, agentID string, limit, offset int) ([]*models.DebugTask, int, error) {
-	return nil, 0, nil
-}
-func (m *MockDB) DeleteCompletedDebugTasksOlderThan(ctx context.Context, threshold time.Time) error {
-	return nil
-}
-func (m *MockDB) TimeoutPendingDebugTasks(ctx context.Context, threshold time.Time) error { return nil }
-func (m *MockDB) DeleteExecutionsForDeletedTasksOlderThan(ctx context.Context, threshold time.Time) error {
-	return nil
-}
-func (m *MockDB) DeleteOldExecutionsKeepLastN(ctx context.Context, keepN int) error { return nil }
-func (m *MockDB) CreateTemplate(ctx context.Context, template *models.Template) error {
-	return nil
-}
-func (m *MockDB) GetTemplate(ctx context.Context, id string) (*models.Template, error) {
-	return nil, nil
-}
-func (m *MockDB) UpdateTemplate(ctx context.Context, id string, update *db.TemplateUpdate) error {
-	return nil
-}
-func (m *MockDB) DeleteTemplate(ctx context.Context, id string) error { return nil }
-func (m *MockDB) ListTemplates(ctx context.Context, limit, offset int) ([]*models.Template, int, error) {
-	return nil, 0, nil
-}
-func (m *MockDB) CreateTemplateTask(ctx context.Context, task *models.TemplateTask) error {
-	return nil
-}
-func (m *MockDB) GetTemplateTask(ctx context.Context, id string) (*models.TemplateTask, error) {
-	return nil, nil
-}
-func (m *MockDB) UpdateTemplateTask(ctx context.Context, id string, update *db.TemplateTaskUpdate) error {
-	return nil
-}
-func (m *MockDB) ListTemplateTasks(ctx context.Context, templateID string, limit, offset int) ([]*models.TemplateTask, int, error) {
-	return nil, 0, nil
-}
-func (m *MockDB) GetTemplateTasksForTemplate(ctx context.Context, templateID string) ([]*models.TemplateTask, error) {
-	return nil, nil
-}
-func (m *MockDB) DeleteTemplateTask(ctx context.Context, id string) error { return nil }
-func (m *MockDB) ReorderTemplateTasks(ctx context.Context, templateID string, taskIDs []string) error {
-	return nil
-}
-func (m *MockDB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID string) error {
-	return nil
-}
-func (m *MockDB) ExportClusterToTemplate(ctx context.Context, clusterID string, template *models.Template, taskIDs []string) error {
-	return nil
-}

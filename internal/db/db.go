@@ -10,6 +10,8 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
+//go:generate mockgen -package db -destination mock_db.go . DB
+
 type DB interface {
 	Close() error
 
@@ -47,7 +49,7 @@ type DB interface {
 	GetDebugTask(ctx context.Context, id string) (*models.DebugTask, error)
 	ListDebugTasks(ctx context.Context, agentID string, limit, offset int) ([]*models.DebugTask, int, error)
 	GetPendingDebugTasksForAgent(ctx context.Context, agentID string) ([]*models.DebugTask, error)
-	UpdateDebugTaskExecution(ctx context.Context, id string, status models.ExecutionStatus, output string, exitCode *int, error string) error
+	UpdateDebugTaskExecution(ctx context.Context, id string, status models.ExecutionStatus, output string, exitCode *int, errMsg string) error
 	DeleteCompletedDebugTasksOlderThan(ctx context.Context, threshold time.Time) error
 	TimeoutPendingDebugTasks(ctx context.Context, threshold time.Time) error
 

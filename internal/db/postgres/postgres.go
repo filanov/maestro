@@ -367,13 +367,49 @@ func (d *DB) DeleteTask(ctx context.Context, id string) error {
 		return fmt.Errorf("soft delete task: %w", err)
 	}
 
-	reorderQuery := `
-		UPDATE tasks
-		SET "order" = "order" - 1
+	// Get tasks that need reordering (order > deleted task's order)
+	getTasksQuery := `
+		SELECT id, "order"
+		FROM tasks
 		WHERE cluster_id = $1 AND "order" > $2 AND deleted_at IS NULL
+		ORDER BY "order" ASC
 	`
-	if _, err := tx.ExecContext(ctx, reorderQuery, task.ClusterID, task.Order); err != nil {
-		return fmt.Errorf("reorder tasks: %w", err)
+	rows, err := tx.QueryContext(ctx, getTasksQuery, task.ClusterID, task.Order)
+	if err != nil {
+		return fmt.Errorf("get tasks for reorder: %w", err)
+	}
+
+	type taskOrder struct {
+		id    string
+		order int
+	}
+	var tasksToReorder []taskOrder
+	for rows.Next() {
+		var t taskOrder
+		if err := rows.Scan(&t.id, &t.order); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan task: %w", err)
+		}
+		tasksToReorder = append(tasksToReorder, t)
+	}
+	rows.Close()
+
+	// Two-phase update to avoid constraint violations
+	// First pass: set to high temporary values
+	for i, t := range tasksToReorder {
+		query := `UPDATE tasks SET "order" = $1 WHERE id = $2`
+		if _, err := tx.ExecContext(ctx, query, 1000+i, t.id); err != nil {
+			return fmt.Errorf("update task order (temp): %w", err)
+		}
+	}
+
+	// Second pass: set to final values (original order - 1)
+	for _, t := range tasksToReorder {
+		newOrder := t.order - 1
+		query := `UPDATE tasks SET "order" = $1 WHERE id = $2`
+		if _, err := tx.ExecContext(ctx, query, newOrder, t.id); err != nil {
+			return fmt.Errorf("update task order: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

@@ -14,12 +14,12 @@ import (
 
 var _ = Describe("Scheduler", func() {
 	var (
-		scheduler  *engine.Scheduler
-		mockDB     *db.MockDB
-		mockCtrl   *gomock.Controller
-		ctx        context.Context
-		agentID    string
-		clusterID  string
+		scheduler *engine.Scheduler
+		mockDB    *db.MockDB
+		mockCtrl  *gomock.Controller
+		ctx       context.Context
+		agentID   string
+		clusterID string
 	)
 
 	BeforeEach(func() {

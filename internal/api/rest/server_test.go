@@ -3,6 +3,7 @@ package rest_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"time"
@@ -105,6 +106,23 @@ var _ = Describe("REST Server", func() {
 
 				Expect(w.Code).To(Equal(http.StatusBadRequest))
 			})
+
+			It("should return 500 when database create fails", func() {
+				reqBody := openapi.CreateClusterRequest{
+					Name:        "test-cluster",
+					Description: ptr("test description"),
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().CreateCluster(gomock.Any(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/clusters", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.CreateCluster(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
 		})
 
 		Describe("GET /clusters/{id}", func() {
@@ -146,6 +164,20 @@ var _ = Describe("REST Server", func() {
 
 				Expect(w.Code).To(Equal(http.StatusNotFound))
 			})
+
+			It("should return 500 when database get fails", func() {
+				clusterID := uuid.New().String()
+
+				mockDB.EXPECT().GetCluster(gomock.Any(), clusterID).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters/"+clusterID, nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(clusterID)
+				server.GetCluster(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
 		})
 
 		Describe("GET /clusters", func() {
@@ -185,6 +217,17 @@ var _ = Describe("REST Server", func() {
 				Expect(response.Total).To(Equal(2))
 				Expect(response.Limit).To(Equal(50))
 			})
+
+			It("should return 500 when database list fails", func() {
+				mockDB.EXPECT().ListClusters(gomock.Any(), 50, 0).Return(nil, 0, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+				w := httptest.NewRecorder()
+
+				server.ListClusters(w, req, openapi.ListClustersParams{})
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
 		})
 
 		Describe("DELETE /clusters/{id}", func() {
@@ -214,6 +257,86 @@ var _ = Describe("REST Server", func() {
 				server.DeleteCluster(w, req, openapi.ID(id))
 
 				Expect(w.Code).To(Equal(http.StatusNotFound))
+			})
+
+			It("should return 500 when database delete fails", func() {
+				clusterID := uuid.New().String()
+
+				mockDB.EXPECT().DeleteCluster(gomock.Any(), clusterID).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodDelete, "/api/v1/clusters/"+clusterID, nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(clusterID)
+				server.DeleteCluster(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+	})
+
+	Describe("Agent Operations", func() {
+		Describe("GET /clusters/{id}/agents", func() {
+			It("should return 500 when database list fails", func() {
+				clusterID := uuid.New().String()
+
+				mockDB.EXPECT().ListAgents(gomock.Any(), clusterID, nil, 50, 0).Return(nil, 0, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters/"+clusterID+"/agents", nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(clusterID)
+				server.ListAgentsByCluster(w, req, id, openapi.ListAgentsByClusterParams{})
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("GET /agents/{id}", func() {
+			It("should return 500 when database get fails", func() {
+				agentID := uuid.New().String()
+
+				mockDB.EXPECT().GetAgent(gomock.Any(), agentID).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/"+agentID, nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(agentID)
+				server.GetAgent(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("DELETE /agents/{id}", func() {
+			It("should return 500 when database delete fails", func() {
+				agentID := uuid.New().String()
+
+				mockDB.EXPECT().DeleteAgent(gomock.Any(), agentID).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodDelete, "/api/v1/agents/"+agentID, nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(agentID)
+				server.DeleteAgent(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("GET /agents/{id}/executions", func() {
+			It("should return 500 when database list fails", func() {
+				agentID := uuid.New().String()
+
+				mockDB.EXPECT().ListExecutions(gomock.Any(), gomock.Any(), 50, 0).Return(nil, 0, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/"+agentID+"/executions", nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(agentID)
+				server.ListAgentExecutions(w, req, openapi.ID(id), openapi.ListAgentExecutionsParams{})
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
 			})
 		})
 	})
@@ -292,6 +415,51 @@ var _ = Describe("REST Server", func() {
 
 				Expect(w.Code).To(Equal(http.StatusBadRequest))
 			})
+
+			It("should return 500 when database get tasks fails", func() {
+				clusterID := uuid.New()
+				reqBody := openapi.CreateTaskRequest{
+					ClusterId: clusterID,
+					Name:      "test-task",
+					Type:      "exec",
+					Config: openapi.TaskConfig{
+						Command: "echo test",
+					},
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().GetTasksForCluster(gomock.Any(), clusterID.String()).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.CreateTask(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+
+			It("should return 500 when database create task fails", func() {
+				clusterID := uuid.New()
+				reqBody := openapi.CreateTaskRequest{
+					ClusterId: clusterID,
+					Name:      "test-task",
+					Type:      "exec",
+					Config: openapi.TaskConfig{
+						Command: "echo test",
+					},
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().GetTasksForCluster(gomock.Any(), clusterID.String()).Return([]*models.Task{}, nil)
+				mockDB.EXPECT().CreateTask(gomock.Any(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.CreateTask(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
 		})
 
 		Describe("PUT /tasks/{id}", func() {
@@ -345,6 +513,44 @@ var _ = Describe("REST Server", func() {
 
 				Expect(w.Code).To(Equal(http.StatusNotFound))
 			})
+
+			It("should return 500 when database update fails", func() {
+				taskID := uuid.New().String()
+				reqBody := openapi.UpdateTaskRequest{
+					Name: ptr("updated-task"),
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().UpdateTask(gomock.Any(), taskID, gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPut, "/api/v1/tasks/"+taskID, bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(taskID)
+				server.UpdateTask(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+
+			It("should return 500 when get updated task fails", func() {
+				taskID := uuid.New().String()
+				reqBody := openapi.UpdateTaskRequest{
+					Name: ptr("updated-task"),
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().UpdateTask(gomock.Any(), taskID, gomock.Any()).Return(nil)
+				mockDB.EXPECT().ResetExecutionsForTask(gomock.Any(), taskID).Return(nil)
+				mockDB.EXPECT().GetTask(gomock.Any(), taskID).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPut, "/api/v1/tasks/"+taskID, bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(taskID)
+				server.UpdateTask(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
 		})
 
 		Describe("POST /tasks/reorder", func() {
@@ -392,6 +598,144 @@ var _ = Describe("REST Server", func() {
 
 				Expect(w.Code).To(Equal(http.StatusBadRequest))
 			})
+
+			It("should return 500 when database get tasks fails", func() {
+				clusterID := uuid.New()
+				task1ID := uuid.New()
+				reqBody := openapi.ReorderTasksRequest{
+					ClusterId: clusterID,
+					TaskIds:   []uuid.UUID{task1ID},
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().GetTasksForCluster(gomock.Any(), clusterID.String()).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/reorder", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.ReorderTasks(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+
+			It("should return 500 when database reorder fails", func() {
+				clusterID := uuid.New()
+				task1ID := uuid.New()
+				reqBody := openapi.ReorderTasksRequest{
+					ClusterId: clusterID,
+					TaskIds:   []uuid.UUID{task1ID},
+				}
+				body, _ := json.Marshal(reqBody)
+
+				existingTasks := []*models.Task{
+					{ID: task1ID.String(), Order: 0},
+				}
+
+				mockDB.EXPECT().GetTasksForCluster(gomock.Any(), clusterID.String()).Return(existingTasks, nil)
+				mockDB.EXPECT().ReorderTasks(gomock.Any(), clusterID.String(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/reorder", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.ReorderTasks(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("GET /tasks", func() {
+			It("should return 500 when database list fails", func() {
+				mockDB.EXPECT().ListTasks(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, 0, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tasks", nil)
+				w := httptest.NewRecorder()
+
+				server.ListTasks(w, req, openapi.ListTasksParams{})
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("DELETE /tasks/{id}", func() {
+			It("should return 500 when database delete fails", func() {
+				taskID := uuid.New().String()
+
+				mockDB.EXPECT().DeleteTask(gomock.Any(), taskID).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/"+taskID, nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(taskID)
+				server.DeleteTask(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("POST /tasks/{id}/reset-executions", func() {
+			It("should return 500 when database get task fails", func() {
+				taskID := uuid.New().String()
+
+				mockDB.EXPECT().GetTask(gomock.Any(), taskID).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/"+taskID+"/reset-executions", nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(taskID)
+				server.ResetTaskExecutions(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+
+			It("should return 500 when database reset executions fails", func() {
+				taskID := uuid.New().String()
+				task := &models.Task{
+					ID:   taskID,
+					Name: "test-task",
+				}
+
+				mockDB.EXPECT().GetTask(gomock.Any(), taskID).Return(task, nil)
+				mockDB.EXPECT().ResetExecutionsForTask(gomock.Any(), taskID).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/"+taskID+"/reset-executions", nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(taskID)
+				server.ResetTaskExecutions(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+	})
+
+	Describe("Execution Operations", func() {
+		Describe("GET /executions", func() {
+			It("should return 500 when database list fails", func() {
+				mockDB.EXPECT().ListExecutions(gomock.Any(), gomock.Any(), 50, 0).Return(nil, 0, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/executions", nil)
+				w := httptest.NewRecorder()
+
+				server.ListExecutions(w, req, openapi.ListExecutionsParams{})
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("GET /executions/{id}", func() {
+			It("should return 500 when database get fails", func() {
+				executionID := uuid.New().String()
+
+				mockDB.EXPECT().GetExecution(gomock.Any(), executionID).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/executions/"+executionID, nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(executionID)
+				server.GetExecution(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
 		})
 	})
 
@@ -418,6 +762,36 @@ var _ = Describe("REST Server", func() {
 				server.CreateTemplate(w, req)
 
 				Expect(w.Code).To(Equal(http.StatusCreated))
+			})
+
+			It("should return 500 when database create fails", func() {
+				reqBody := openapi.CreateTemplateRequest{
+					Name:        "test-template",
+					Description: ptr("test description"),
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().CreateTemplate(gomock.Any(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/templates", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.CreateTemplate(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("GET /templates", func() {
+			It("should return 500 when database list fails", func() {
+				mockDB.EXPECT().ListTemplates(gomock.Any(), 50, 0).Return(nil, 0, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/templates", nil)
+				w := httptest.NewRecorder()
+
+				server.ListTemplates(w, req, openapi.ListTemplatesParams{})
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
 			})
 		})
 
@@ -453,6 +827,71 @@ var _ = Describe("REST Server", func() {
 				server.GetTemplate(w, req, templateID)
 
 				Expect(w.Code).To(Equal(http.StatusNotFound))
+			})
+
+			It("should return 500 when database get fails", func() {
+				templateID := uuid.New()
+
+				mockDB.EXPECT().GetTemplate(gomock.Any(), templateID.String()).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/templates/"+templateID.String(), nil)
+				w := httptest.NewRecorder()
+
+				server.GetTemplate(w, req, templateID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("PUT /templates/{id}", func() {
+			It("should return 500 when database update fails", func() {
+				templateID := uuid.New()
+				reqBody := openapi.UpdateTemplateRequest{
+					Name: ptr("updated-template"),
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().UpdateTemplate(gomock.Any(), templateID.String(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPut, "/api/v1/templates/"+templateID.String(), bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.UpdateTemplate(w, req, templateID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+
+			It("should return 500 when get updated template fails", func() {
+				templateID := uuid.New()
+				reqBody := openapi.UpdateTemplateRequest{
+					Name: ptr("updated-template"),
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().UpdateTemplate(gomock.Any(), templateID.String(), gomock.Any()).Return(nil)
+				mockDB.EXPECT().GetTemplate(gomock.Any(), templateID.String()).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPut, "/api/v1/templates/"+templateID.String(), bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.UpdateTemplate(w, req, templateID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("DELETE /templates/{id}", func() {
+			It("should return 500 when database delete fails", func() {
+				templateID := uuid.New()
+
+				mockDB.EXPECT().DeleteTemplate(gomock.Any(), templateID.String()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodDelete, "/api/v1/templates/"+templateID.String(), nil)
+				w := httptest.NewRecorder()
+
+				server.DeleteTemplate(w, req, templateID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
 			})
 		})
 
@@ -503,6 +942,68 @@ var _ = Describe("REST Server", func() {
 				server.ImportTemplate(w, req, clusterID)
 
 				Expect(w.Code).To(Equal(http.StatusNotFound))
+			})
+
+			It("should return 500 when get template tasks fails", func() {
+				clusterID := uuid.New()
+				templateID := uuid.New()
+
+				reqBody := openapi.ImportTemplateRequest{
+					TemplateId: templateID,
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().GetTemplateTasksForTemplate(gomock.Any(), templateID.String()).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/clusters/"+clusterID.String()+"/import-template", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.ImportTemplate(w, req, clusterID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+
+			It("should return 500 when database import fails", func() {
+				clusterID := uuid.New()
+				templateID := uuid.New()
+
+				reqBody := openapi.ImportTemplateRequest{
+					TemplateId: templateID,
+				}
+				body, _ := json.Marshal(reqBody)
+
+				templateTasks := []*models.TemplateTask{
+					{ID: uuid.New().String(), Name: "task1"},
+				}
+
+				mockDB.EXPECT().GetTemplateTasksForTemplate(gomock.Any(), templateID.String()).Return(templateTasks, nil)
+				mockDB.EXPECT().ImportTemplateToCluster(gomock.Any(), clusterID.String(), templateID.String()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/clusters/"+clusterID.String()+"/import-template", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.ImportTemplate(w, req, clusterID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("POST /clusters/{id}/export-template", func() {
+			It("should return 500 when database export fails", func() {
+				clusterID := uuid.New()
+				reqBody := openapi.ExportTemplateRequest{
+					TemplateName: "exported-template",
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().ExportClusterToTemplate(gomock.Any(), clusterID.String(), gomock.Any(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/clusters/"+clusterID.String()+"/export-template", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.ExportTemplate(w, req, clusterID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
 			})
 		})
 	})
@@ -611,6 +1112,63 @@ var _ = Describe("REST Server", func() {
 
 				Expect(w.Code).To(Equal(http.StatusNotFound))
 			})
+
+			It("should return 500 when database get fails", func() {
+				debugTaskID := uuid.New().String()
+
+				mockDB.EXPECT().GetDebugTask(gomock.Any(), debugTaskID).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/debug-tasks/"+debugTaskID, nil)
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(debugTaskID)
+				server.GetDebugTask(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+		})
+
+		Describe("POST /debug-tasks - Database Errors", func() {
+			It("should return 400 when get agent fails", func() {
+				agentID := uuid.New()
+				reqBody := openapi.CreateDebugTaskRequest{
+					AgentId: agentID,
+					Command: "ps aux",
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().GetAgent(gomock.Any(), agentID.String()).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/debug-tasks", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.CreateDebugTask(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusBadRequest))
+			})
+
+			It("should return 500 when create debug task fails", func() {
+				agentID := uuid.New()
+				agent := &models.Agent{
+					ID:        agentID.String(),
+					ClusterID: uuid.New().String(),
+				}
+				reqBody := openapi.CreateDebugTaskRequest{
+					AgentId: agentID,
+					Command: "ps aux",
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().GetAgent(gomock.Any(), agentID.String()).Return(agent, nil)
+				mockDB.EXPECT().CreateDebugTask(gomock.Any(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/debug-tasks", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.CreateDebugTask(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
 		})
 
 		Describe("GET /agents/{id}/debug-tasks", func() {
@@ -634,6 +1192,19 @@ var _ = Describe("REST Server", func() {
 				server.ListDebugTasksByAgent(w, req, agentID, openapi.ListDebugTasksByAgentParams{})
 
 				Expect(w.Code).To(Equal(http.StatusOK))
+			})
+
+			It("should return 500 when database list fails", func() {
+				agentID := uuid.New()
+
+				mockDB.EXPECT().ListDebugTasks(gomock.Any(), agentID.String(), 50, 0).Return(nil, 0, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/"+agentID.String()+"/debug-tasks", nil)
+				w := httptest.NewRecorder()
+
+				server.ListDebugTasksByAgent(w, req, agentID, openapi.ListDebugTasksByAgentParams{})
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
 			})
 		})
 	})
@@ -1094,6 +1665,19 @@ var _ = Describe("REST Server", func() {
 
 				Expect(w.Code).To(Equal(http.StatusOK))
 			})
+
+			It("should return 500 when database list fails", func() {
+				templateID := uuid.New()
+
+				mockDB.EXPECT().ListTemplateTasks(gomock.Any(), templateID.String(), 50, 0).Return(nil, 0, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/templates/"+templateID.String()+"/tasks", nil)
+				w := httptest.NewRecorder()
+
+				server.ListTemplateTasks(w, req, templateID, openapi.ListTemplateTasksParams{})
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
 		})
 
 		Describe("POST /templates/{id}/tasks", func() {
@@ -1125,6 +1709,49 @@ var _ = Describe("REST Server", func() {
 				server.CreateTemplateTask(w, req, templateID)
 
 				Expect(w.Code).To(Equal(http.StatusCreated))
+			})
+
+			It("should return 500 when database get template tasks fails", func() {
+				templateID := uuid.New()
+				reqBody := openapi.CreateTemplateTaskRequest{
+					Name: "test-task",
+					Type: "exec",
+					Config: openapi.TaskConfig{
+						Command: "echo test",
+					},
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().GetTemplateTasksForTemplate(gomock.Any(), templateID.String()).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/templates/"+templateID.String()+"/tasks", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.CreateTemplateTask(w, req, templateID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+
+			It("should return 500 when database create template task fails", func() {
+				templateID := uuid.New()
+				reqBody := openapi.CreateTemplateTaskRequest{
+					Name: "test-task",
+					Type: "exec",
+					Config: openapi.TaskConfig{
+						Command: "echo test",
+					},
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().GetTemplateTasksForTemplate(gomock.Any(), templateID.String()).Return([]*models.TemplateTask{}, nil)
+				mockDB.EXPECT().CreateTemplateTask(gomock.Any(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/templates/"+templateID.String()+"/tasks", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.CreateTemplateTask(w, req, templateID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
 			})
 		})
 
@@ -1172,6 +1799,41 @@ var _ = Describe("REST Server", func() {
 
 				Expect(w.Code).To(Equal(http.StatusNotFound))
 			})
+
+			It("should return 500 when database update fails", func() {
+				taskID := uuid.New()
+				reqBody := openapi.UpdateTemplateTaskRequest{
+					Name: ptr("updated-task"),
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().UpdateTemplateTask(gomock.Any(), taskID.String(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPut, "/api/v1/template-tasks/"+taskID.String(), bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.UpdateTemplateTask(w, req, taskID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
+
+			It("should return 500 when get updated template task fails", func() {
+				taskID := uuid.New()
+				reqBody := openapi.UpdateTemplateTaskRequest{
+					Name: ptr("updated-task"),
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().UpdateTemplateTask(gomock.Any(), taskID.String(), gomock.Any()).Return(nil)
+				mockDB.EXPECT().GetTemplateTask(gomock.Any(), taskID.String()).Return(nil, errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPut, "/api/v1/template-tasks/"+taskID.String(), bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.UpdateTemplateTask(w, req, taskID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			})
 		})
 
 		Describe("DELETE /template-tasks/{id}", func() {
@@ -1186,6 +1848,19 @@ var _ = Describe("REST Server", func() {
 				server.DeleteTemplateTask(w, req, taskID)
 
 				Expect(w.Code).To(Equal(http.StatusNoContent))
+			})
+
+			It("should return 500 when database delete fails", func() {
+				taskID := uuid.New()
+
+				mockDB.EXPECT().DeleteTemplateTask(gomock.Any(), taskID.String()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodDelete, "/api/v1/template-tasks/"+taskID.String(), nil)
+				w := httptest.NewRecorder()
+
+				server.DeleteTemplateTask(w, req, taskID)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
 			})
 		})
 
@@ -1209,6 +1884,26 @@ var _ = Describe("REST Server", func() {
 				server.ReorderTemplateTasks(w, req)
 
 				Expect(w.Code).To(Equal(http.StatusOK))
+			})
+
+			It("should return 500 when database reorder fails", func() {
+				templateID := uuid.New()
+				task1ID := uuid.New()
+
+				reqBody := openapi.ReorderTemplateTasksRequest{
+					TemplateId: templateID,
+					TaskIds:    []uuid.UUID{task1ID},
+				}
+				body, _ := json.Marshal(reqBody)
+
+				mockDB.EXPECT().ReorderTemplateTasks(gomock.Any(), templateID.String(), gomock.Any()).Return(errors.New("database error"))
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/template-tasks/reorder", bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				server.ReorderTemplateTasks(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusInternalServerError))
 			})
 		})
 	})

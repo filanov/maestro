@@ -174,7 +174,7 @@ shell:
 
 run-server: docker-up migrate-up
 	@echo "Running server (in container)..."
-	@$(DOCKER_COMPOSE) up server
+	@$(DOCKER_COMPOSE) up --build server
 
 run-agent:
 	@echo "Running agent (in container)..."

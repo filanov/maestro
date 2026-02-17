@@ -57,6 +57,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.server
+    pull_policy: build
     depends_on:
       postgres:
         condition: service_healthy

@@ -178,12 +178,18 @@ func (a *Agent) executeTask(ctx context.Context, task *pb.Task) {
 
 	var timeout time.Duration
 	var command, workDir string
+	var useBash, useNsenter bool
 
 	switch cfg := task.Config.(type) {
 	case *pb.Task_Exec:
 		timeout = time.Duration(cfg.Exec.TimeoutSeconds) * time.Second
 		command = cfg.Exec.Command
 		workDir = cfg.Exec.WorkingDir
+		useBash = true
+	case *pb.Task_Bash:
+		timeout = time.Duration(cfg.Bash.TimeoutSeconds) * time.Second
+		command = cfg.Bash.Command
+		useNsenter = true
 	default:
 		slog.Error("unsupported task type", "task_id", task.Id)
 		return
@@ -201,22 +207,30 @@ func (a *Agent) executeTask(ctx context.Context, task *pb.Task) {
 
 	a.reportExecutionWithRetry(task.Id, pb.ExecutionStatus_EXECUTION_STATUS_RUNNING, "", 0, "")
 
-	if workDir == "" {
-		workDir, _ = os.Getwd()
-	}
+	if useBash {
+		if workDir == "" {
+			workDir, _ = os.Getwd()
+		}
 
-	if _, err := os.Stat(workDir); os.IsNotExist(err) {
-		slog.Error("working directory does not exist", "path", workDir)
-		a.reportExecutionWithRetry(task.Id, pb.ExecutionStatus_EXECUTION_STATUS_FAILED, "", -1,
-			fmt.Sprintf("Working directory does not exist: %s", workDir))
-		return
+		if _, err := os.Stat(workDir); os.IsNotExist(err) {
+			slog.Error("working directory does not exist", "path", workDir)
+			a.reportExecutionWithRetry(task.Id, pb.ExecutionStatus_EXECUTION_STATUS_FAILED, "", -1,
+				fmt.Sprintf("Working directory does not exist: %s", workDir))
+			return
+		}
 	}
 
 	execCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(execCtx, "bash", "-c", command)
-	cmd.Dir = workDir
+	var cmd *exec.Cmd
+	if useNsenter {
+		wrappedCommand := fmt.Sprintf("nsenter -t 1 -m -u -n -i bash <<'EOF'\n%s\nEOF", command)
+		cmd = exec.CommandContext(execCtx, "bash", "-c", wrappedCommand)
+	} else {
+		cmd = exec.CommandContext(execCtx, "bash", "-c", command)
+		cmd.Dir = workDir
+	}
 	output, err := cmd.CombinedOutput()
 
 	outputStr := sanitizeOutput(output)

@@ -120,20 +120,30 @@ func (s *Server) PollTasks(ctx context.Context, req *pb.PollTasksRequest) (*pb.P
 		pbTask := &pb.Task{
 			Id:       task.ID,
 			Name:     task.Name,
-			Type:     pb.TaskType_TASK_TYPE_EXEC,
 			Blocking: task.Blocking,
 		}
 
-		if task.Type == models.TaskTypeExec {
-			timeoutSeconds := int32(task.Config.Timeout.Seconds())
-			if timeoutSeconds == 0 {
-				timeoutSeconds = 1800
-			}
+		timeoutSeconds := int32(task.Config.Timeout.Seconds())
+		if timeoutSeconds == 0 {
+			timeoutSeconds = 1800
+		}
+
+		switch task.Type {
+		case models.TaskTypeExec:
+			pbTask.Type = pb.TaskType_TASK_TYPE_EXEC
 			pbTask.Config = &pb.Task_Exec{
 				Exec: &pb.ExecConfig{
 					Command:        task.Config.Command,
 					TimeoutSeconds: timeoutSeconds,
 					WorkingDir:     task.Config.WorkingDir,
+				},
+			}
+		case models.TaskTypeBash:
+			pbTask.Type = pb.TaskType_TASK_TYPE_BASH
+			pbTask.Config = &pb.Task_Bash{
+				Bash: &pb.BashConfig{
+					Command:        task.Config.Command,
+					TimeoutSeconds: timeoutSeconds,
 				},
 			}
 		}

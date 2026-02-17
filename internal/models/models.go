@@ -48,6 +48,7 @@ type TaskType string
 
 const (
 	TaskTypeExec TaskType = "exec"
+	TaskTypeBash TaskType = "bash"
 )
 
 type TaskConfig struct {

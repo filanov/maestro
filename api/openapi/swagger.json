@@ -1486,7 +1486,8 @@
           "type": {
             "type": "string",
             "enum": [
-              "exec"
+              "exec",
+              "bash"
             ]
           },
           "order": {
@@ -1554,7 +1555,8 @@
           "type": {
             "type": "string",
             "enum": [
-              "exec"
+              "exec",
+              "bash"
             ]
           },
           "blocking": {
@@ -1787,7 +1789,8 @@
           "type": {
             "type": "string",
             "enum": [
-              "exec"
+              "exec",
+              "bash"
             ]
           },
           "order": {
@@ -1853,7 +1856,8 @@
           "type": {
             "type": "string",
             "enum": [
-              "exec"
+              "exec",
+              "bash"
             ]
           },
           "blocking": {

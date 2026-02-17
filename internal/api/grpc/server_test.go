@@ -208,6 +208,145 @@ var _ = Describe("gRPC Server", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(status.Code(err)).To(Equal(codes.NotFound))
 		})
+
+		It("should return bash tasks with proper config", func() {
+			agent := &models.Agent{
+				ID:        agentID,
+				ClusterID: clusterID,
+			}
+
+			tasks := []*models.Task{
+				{
+					ID:        "task-bash-1",
+					ClusterID: clusterID,
+					Name:      "Bash Task",
+					Type:      models.TaskTypeBash,
+					Order:     1,
+					Blocking:  false,
+					Config: models.TaskConfig{
+						Command: "ip addr show",
+						Timeout: 5 * time.Minute,
+					},
+				},
+			}
+
+			req := &pb.PollTasksRequest{AgentId: agentID}
+
+			mockDB.EXPECT().GetAgent(ctx, agentID).Return(agent, nil).Times(2)
+			mockDB.EXPECT().GetTasksForCluster(ctx, clusterID).Return(tasks, nil)
+			mockDB.EXPECT().GetExecutionsForAgent(ctx, agentID).Return([]*models.TaskExecution{}, nil)
+
+			resp, err := server.PollTasks(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resp.Tasks).To(HaveLen(1))
+
+			task := resp.Tasks[0]
+			Expect(task.Name).To(Equal("Bash Task"))
+			Expect(task.Type).To(Equal(pb.TaskType_TASK_TYPE_BASH))
+
+			bashConfig := task.GetBash()
+			Expect(bashConfig).NotTo(BeNil())
+			Expect(bashConfig.Command).To(Equal("ip addr show"))
+			Expect(bashConfig.TimeoutSeconds).To(Equal(int32(300)))
+		})
+
+		It("should return mixed exec and bash tasks", func() {
+			agent := &models.Agent{
+				ID:        agentID,
+				ClusterID: clusterID,
+			}
+
+			tasks := []*models.Task{
+				{
+					ID:        "task-exec-1",
+					ClusterID: clusterID,
+					Name:      "Exec Task",
+					Type:      models.TaskTypeExec,
+					Order:     1,
+					Blocking:  false,
+					Config: models.TaskConfig{
+						Command:    "echo hello",
+						Timeout:    30 * time.Minute,
+						WorkingDir: "/tmp",
+					},
+				},
+				{
+					ID:        "task-bash-1",
+					ClusterID: clusterID,
+					Name:      "Bash Task",
+					Type:      models.TaskTypeBash,
+					Order:     2,
+					Blocking:  false,
+					Config: models.TaskConfig{
+						Command: "hostname",
+						Timeout: 2 * time.Minute,
+					},
+				},
+			}
+
+			req := &pb.PollTasksRequest{AgentId: agentID}
+
+			mockDB.EXPECT().GetAgent(ctx, agentID).Return(agent, nil).Times(2)
+			mockDB.EXPECT().GetTasksForCluster(ctx, clusterID).Return(tasks, nil)
+			mockDB.EXPECT().GetExecutionsForAgent(ctx, agentID).Return([]*models.TaskExecution{}, nil)
+
+			resp, err := server.PollTasks(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resp.Tasks).To(HaveLen(2))
+
+			execTask := resp.Tasks[0]
+			Expect(execTask.Name).To(Equal("Exec Task"))
+			Expect(execTask.Type).To(Equal(pb.TaskType_TASK_TYPE_EXEC))
+			execConfig := execTask.GetExec()
+			Expect(execConfig).NotTo(BeNil())
+			Expect(execConfig.Command).To(Equal("echo hello"))
+			Expect(execConfig.WorkingDir).To(Equal("/tmp"))
+
+			bashTask := resp.Tasks[1]
+			Expect(bashTask.Name).To(Equal("Bash Task"))
+			Expect(bashTask.Type).To(Equal(pb.TaskType_TASK_TYPE_BASH))
+			bashConfig := bashTask.GetBash()
+			Expect(bashConfig).NotTo(BeNil())
+			Expect(bashConfig.Command).To(Equal("hostname"))
+			Expect(bashConfig.TimeoutSeconds).To(Equal(int32(120)))
+		})
+
+		It("should use default timeout for bash tasks when not specified", func() {
+			agent := &models.Agent{
+				ID:        agentID,
+				ClusterID: clusterID,
+			}
+
+			tasks := []*models.Task{
+				{
+					ID:        "task-bash-default",
+					ClusterID: clusterID,
+					Name:      "Bash Task Default Timeout",
+					Type:      models.TaskTypeBash,
+					Order:     1,
+					Blocking:  false,
+					Config: models.TaskConfig{
+						Command: "uptime",
+						Timeout: 0,
+					},
+				},
+			}
+
+			req := &pb.PollTasksRequest{AgentId: agentID}
+
+			mockDB.EXPECT().GetAgent(ctx, agentID).Return(agent, nil).Times(2)
+			mockDB.EXPECT().GetTasksForCluster(ctx, clusterID).Return(tasks, nil)
+			mockDB.EXPECT().GetExecutionsForAgent(ctx, agentID).Return([]*models.TaskExecution{}, nil)
+
+			resp, err := server.PollTasks(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resp.Tasks).To(HaveLen(1))
+
+			task := resp.Tasks[0]
+			bashConfig := task.GetBash()
+			Expect(bashConfig).NotTo(BeNil())
+			Expect(bashConfig.TimeoutSeconds).To(Equal(int32(1800)))
+		})
 	})
 
 	Describe("ReportTaskExecution", func() {

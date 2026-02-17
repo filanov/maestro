@@ -46,6 +46,7 @@ message Task {
   bool blocking = 4;
   oneof config {
     ExecConfig exec = 10;
+    BashConfig bash = 11;
   }
 }
 
@@ -53,6 +54,11 @@ message ExecConfig {
   string command = 1;
   int32 timeout_seconds = 2;
   string working_dir = 3;
+}
+
+message BashConfig {
+  string command = 1;
+  int32 timeout_seconds = 2;
 }
 
 message ReportTaskExecutionRequest {
@@ -98,6 +104,7 @@ message ReportDebugTaskExecutionResponse {
 enum TaskType {
   TASK_TYPE_UNSPECIFIED = 0;
   TASK_TYPE_EXEC = 1;
+  TASK_TYPE_BASH = 2;
 }
 
 enum ExecutionStatus {

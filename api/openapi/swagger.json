@@ -1580,6 +1580,13 @@
           "name": {
             "type": "string"
           },
+          "type": {
+            "type": "string",
+            "enum": [
+              "exec",
+              "bash"
+            ]
+          },
           "blocking": {
             "type": "boolean"
           },
@@ -1879,6 +1886,13 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "exec",
+              "bash"
+            ]
           },
           "blocking": {
             "type": "boolean"

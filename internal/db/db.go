@@ -82,6 +82,7 @@ type AgentUpdate struct {
 
 type TaskUpdate struct {
 	Name     *string
+	Type     *models.TaskType
 	Blocking *bool
 	Config   *models.TaskConfig
 }
@@ -100,6 +101,7 @@ type TemplateUpdate struct {
 
 type TemplateTaskUpdate struct {
 	Name     *string
+	Type     *models.TaskType
 	Blocking *bool
 	Config   *models.TaskConfig
 }

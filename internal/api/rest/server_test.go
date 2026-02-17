@@ -2,6 +2,7 @@ package rest_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -494,6 +495,44 @@ var _ = Describe("REST Server", func() {
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(response.Name).To(Equal("updated-task"))
+			})
+
+			It("should update task type from exec to bash", func() {
+				taskID := uuid.New().String()
+				bashType := openapi.UpdateTaskRequestTypeBash
+				reqBody := openapi.UpdateTaskRequest{
+					Type: &bashType,
+				}
+				body, _ := json.Marshal(reqBody)
+
+				updatedTask := &models.Task{
+					ID:        taskID,
+					Name:      "test-task",
+					Type:      models.TaskTypeBash,
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				}
+
+				mockDB.EXPECT().UpdateTask(gomock.Any(), taskID, gomock.Any()).DoAndReturn(
+					func(ctx context.Context, id string, update *db.TaskUpdate) error {
+						Expect(update.Type).NotTo(BeNil())
+						Expect(*update.Type).To(Equal(models.TaskTypeBash))
+						return nil
+					})
+				mockDB.EXPECT().ResetExecutionsForTask(gomock.Any(), taskID).Return(nil)
+				mockDB.EXPECT().GetTask(gomock.Any(), taskID).Return(updatedTask, nil)
+
+				req := httptest.NewRequest(http.MethodPut, "/api/v1/tasks/"+taskID, bytes.NewReader(body))
+				w := httptest.NewRecorder()
+
+				id, _ := uuid.Parse(taskID)
+				server.UpdateTask(w, req, openapi.ID(id))
+
+				Expect(w.Code).To(Equal(http.StatusOK))
+				var response openapi.Task
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(response.Type)).To(Equal("bash"))
 			})
 
 			It("should return 404 when task not found", func() {

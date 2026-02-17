@@ -356,6 +356,11 @@ func (s *Server) UpdateTask(w http.ResponseWriter, r *http.Request, id openapi.I
 		Blocking: req.Blocking,
 	}
 
+	if req.Type != nil {
+		taskType := models.TaskType(string(*req.Type))
+		update.Type = &taskType
+	}
+
 	if req.Config != nil {
 		config := taskConfigFromOpenAPI(*req.Config)
 		update.Config = &config
@@ -819,6 +824,10 @@ func (s *Server) UpdateTemplateTask(w http.ResponseWriter, r *http.Request, id o
 
 	if req.Name != nil {
 		update.Name = req.Name
+	}
+	if req.Type != nil {
+		taskType := models.TaskType(string(*req.Type))
+		update.Type = &taskType
 	}
 	if req.Blocking != nil {
 		update.Blocking = req.Blocking

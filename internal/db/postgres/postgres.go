@@ -325,6 +325,9 @@ func (d *DB) UpdateTask(ctx context.Context, id string, update *db.TaskUpdate) e
 	if update.Name != nil {
 		task.Name = *update.Name
 	}
+	if update.Type != nil {
+		task.Type = *update.Type
+	}
 	if update.Blocking != nil {
 		task.Blocking = *update.Blocking
 	}
@@ -340,10 +343,10 @@ func (d *DB) UpdateTask(ctx context.Context, id string, update *db.TaskUpdate) e
 
 	query := `
 		UPDATE tasks
-		SET name = $2, blocking = $3, config = $4, updated_at = $5
+		SET name = $2, type = $3, blocking = $4, config = $5, updated_at = $6
 		WHERE id = $1
 	`
-	_, err = d.conn.ExecContext(ctx, query, id, task.Name, task.Blocking, configJSON, task.UpdatedAt)
+	_, err = d.conn.ExecContext(ctx, query, id, task.Name, task.Type, task.Blocking, configJSON, task.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)
 	}
@@ -1022,6 +1025,9 @@ func (d *DB) UpdateTemplateTask(ctx context.Context, id string, update *db.Templ
 	if update.Name != nil {
 		task.Name = *update.Name
 	}
+	if update.Type != nil {
+		task.Type = *update.Type
+	}
 	if update.Blocking != nil {
 		task.Blocking = *update.Blocking
 	}
@@ -1037,10 +1043,10 @@ func (d *DB) UpdateTemplateTask(ctx context.Context, id string, update *db.Templ
 
 	query := `
 		UPDATE template_tasks
-		SET name = $2, blocking = $3, config = $4, updated_at = $5
+		SET name = $2, type = $3, blocking = $4, config = $5, updated_at = $6
 		WHERE id = $1
 	`
-	_, err = d.conn.ExecContext(ctx, query, id, task.Name, task.Blocking, configJSON, task.UpdatedAt)
+	_, err = d.conn.ExecContext(ctx, query, id, task.Name, task.Type, task.Blocking, configJSON, task.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("update template task: %w", err)
 	}

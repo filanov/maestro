@@ -25,12 +25,14 @@ func Logging(next http.Handler) http.Handler {
 
 		duration := time.Since(start)
 
-		slog.Info("HTTP request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", rw.statusCode,
-			"duration_ms", duration.Milliseconds(),
-			"remote_addr", r.RemoteAddr,
-		)
+		if r.Method != http.MethodGet {
+			slog.Info("HTTP request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", rw.statusCode,
+				"duration_ms", duration.Milliseconds(),
+				"remote_addr", r.RemoteAddr,
+			)
+		}
 	})
 }

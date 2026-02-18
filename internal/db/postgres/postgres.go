@@ -839,7 +839,7 @@ func (d *DB) CreateDebugTask(ctx context.Context, task *models.DebugTask) error 
 
 func (d *DB) GetDebugTask(ctx context.Context, id string) (*models.DebugTask, error) {
 	query := `
-		SELECT id, cluster_id, agent_id, command, status, output, exit_code, created_at, executed_at, error
+		SELECT id, cluster_id, agent_id, command, status, COALESCE(output, ''), exit_code, created_at, executed_at, COALESCE(error, '')
 		FROM debug_tasks
 		WHERE id = $1
 	`
@@ -865,7 +865,7 @@ func (d *DB) ListDebugTasks(ctx context.Context, agentID string, limit, offset i
 	}
 
 	query := `
-		SELECT id, cluster_id, agent_id, command, status, output, exit_code, created_at, executed_at, error
+		SELECT id, cluster_id, agent_id, command, status, COALESCE(output, ''), exit_code, created_at, executed_at, COALESCE(error, '')
 		FROM debug_tasks
 		WHERE agent_id = $1
 		ORDER BY created_at DESC
@@ -891,7 +891,7 @@ func (d *DB) ListDebugTasks(ctx context.Context, agentID string, limit, offset i
 
 func (d *DB) GetPendingDebugTasksForAgent(ctx context.Context, agentID string) ([]*models.DebugTask, error) {
 	query := `
-		SELECT id, cluster_id, agent_id, command, status, output, exit_code, created_at, executed_at, error
+		SELECT id, cluster_id, agent_id, command, status, COALESCE(output, ''), exit_code, created_at, executed_at, COALESCE(error, '')
 		FROM debug_tasks
 		WHERE agent_id = $1 AND status = 'pending'
 		ORDER BY created_at ASC

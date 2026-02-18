@@ -774,6 +774,37 @@
         }
       }
     },
+    "/api/v1/tasks/{id}/reset-executions/agents/{agentId}": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Reset task execution for a specific agent",
+        "operationId": "resetTaskExecutionForAgent",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          },
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Execution reset"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/v1/templates": {
       "get": {
         "tags": [

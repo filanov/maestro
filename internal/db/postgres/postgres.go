@@ -804,6 +804,23 @@ func (d *DB) ResetExecutionsForTask(ctx context.Context, taskID string) error {
 	return nil
 }
 
+func (d *DB) ResetExecutionForAgent(ctx context.Context, taskID, agentID string) error {
+	query := `
+		UPDATE task_executions
+		SET status = 'pending',
+		    output = '',
+		    exit_code = NULL,
+		    error = '',
+		    completed_at = NULL
+		WHERE task_id = $1 AND agent_id = $2
+	`
+	_, err := d.conn.ExecContext(ctx, query, taskID, agentID)
+	if err != nil {
+		return fmt.Errorf("reset execution for agent: %w", err)
+	}
+	return nil
+}
+
 func (d *DB) CreateDebugTask(ctx context.Context, task *models.DebugTask) error {
 	query := `
 		INSERT INTO debug_tasks (id, cluster_id, agent_id, command, status, created_at)

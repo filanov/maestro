@@ -650,6 +650,20 @@ func (mr *MockDBMockRecorder) ResetExecutionsForTask(arg0, arg1 interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetExecutionsForTask", reflect.TypeOf((*MockDB)(nil).ResetExecutionsForTask), arg0, arg1)
 }
 
+// ResetExecutionForAgent mocks base method.
+func (m *MockDB) ResetExecutionForAgent(arg0 context.Context, arg1, arg2 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetExecutionForAgent", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetExecutionForAgent indicates an expected call of ResetExecutionForAgent.
+func (mr *MockDBMockRecorder) ResetExecutionForAgent(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetExecutionForAgent", reflect.TypeOf((*MockDB)(nil).ResetExecutionForAgent), arg0, arg1, arg2)
+}
+
 // TimeoutPendingDebugTasks mocks base method.
 func (m *MockDB) TimeoutPendingDebugTasks(arg0 context.Context, arg1 time.Time) error {
 	m.ctrl.T.Helper()

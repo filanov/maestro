@@ -524,6 +524,37 @@ func (s *Server) ResetTaskExecutions(w http.ResponseWriter, r *http.Request, id 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) ResetTaskExecutionForAgent(w http.ResponseWriter, r *http.Request, id openapi.ID, agentId openapi_types.UUID) {
+	taskID := uuidToString(id)
+	agentID := agentId.String()
+
+	if _, err := s.db.GetTask(r.Context(), taskID); err == db.ErrNotFound {
+		writeError(w, http.StatusNotFound, "task not found")
+		return
+	} else if err != nil {
+		slog.Error("failed to get task", "error", err, "id", taskID)
+		writeError(w, http.StatusInternalServerError, "failed to verify task")
+		return
+	}
+
+	if _, err := s.db.GetAgent(r.Context(), agentID); err == db.ErrNotFound {
+		writeError(w, http.StatusNotFound, "agent not found")
+		return
+	} else if err != nil {
+		slog.Error("failed to get agent", "error", err, "id", agentID)
+		writeError(w, http.StatusInternalServerError, "failed to verify agent")
+		return
+	}
+
+	if err := s.db.ResetExecutionForAgent(r.Context(), taskID, agentID); err != nil {
+		slog.Error("failed to reset task execution for agent", "error", err, "task_id", taskID, "agent_id", agentID)
+		writeError(w, http.StatusInternalServerError, "failed to reset task execution")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) ListExecutions(w http.ResponseWriter, r *http.Request, params openapi.ListExecutionsParams) {
 	filters := db.ExecutionFilters{}
 

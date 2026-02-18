@@ -32,16 +32,18 @@ const (
 )
 
 type Task struct {
-	ID        string
-	ClusterID string
-	Name      string
-	Type      TaskType
-	Order     int
-	Blocking  bool
-	Config    TaskConfig
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt *time.Time
+	ID               string
+	ClusterID        string
+	Name             string
+	Type             TaskType
+	Order            int
+	Blocking         bool
+	Config           TaskConfig
+	ScheduleEnabled  bool          // Enable periodic execution
+	ScheduleInterval time.Duration // Interval between executions (e.g., 5*time.Minute)
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
 }
 
 type TaskType string
@@ -59,13 +61,13 @@ type TaskConfig struct {
 
 type TaskExecution struct {
 	ID          string
-	TaskID      string
 	AgentID     string
+	TaskID      string
 	ClusterID   string
 	Status      ExecutionStatus
 	Output      string
 	ExitCode    *int
-	StartedAt   time.Time
+	StartedAt   time.Time // Used to calculate if scheduled task is due
 	CompletedAt *time.Time
 	Error       string
 }
@@ -102,15 +104,17 @@ type Template struct {
 }
 
 type TemplateTask struct {
-	ID         string
-	TemplateID string
-	Name       string
-	Type       TaskType
-	Order      int
-	Blocking   bool
-	Config     TaskConfig
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID               string
+	TemplateID       string
+	Name             string
+	Type             TaskType
+	Order            int
+	Blocking         bool
+	Config           TaskConfig
+	ScheduleEnabled  bool
+	ScheduleInterval time.Duration
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 func GenerateAgentID(clusterID, hostname string) string {

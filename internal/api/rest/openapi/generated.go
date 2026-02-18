@@ -125,11 +125,17 @@ type CreateDebugTaskRequest struct {
 
 // CreateTaskRequest defines model for CreateTaskRequest.
 type CreateTaskRequest struct {
-	Blocking  *bool                 `json:"blocking,omitempty"`
-	ClusterId openapi_types.UUID    `json:"cluster_id"`
-	Config    TaskConfig            `json:"config"`
-	Name      string                `json:"name"`
-	Type      CreateTaskRequestType `json:"type"`
+	Blocking  *bool              `json:"blocking,omitempty"`
+	ClusterId openapi_types.UUID `json:"cluster_id"`
+	Config    TaskConfig         `json:"config"`
+	Name      string             `json:"name"`
+
+	// ScheduleEnabled Enable periodic execution of this task
+	ScheduleEnabled *bool `json:"schedule_enabled,omitempty"`
+
+	// ScheduleInterval Interval between executions in Go duration format (e.g., "5m", "1h", "30s"). Required if schedule_enabled is true.
+	ScheduleInterval *string               `json:"schedule_interval"`
+	Type             CreateTaskRequestType `json:"type"`
 }
 
 // CreateTaskRequestType defines model for CreateTaskRequest.Type.
@@ -143,10 +149,16 @@ type CreateTemplateRequest struct {
 
 // CreateTemplateTaskRequest defines model for CreateTemplateTaskRequest.
 type CreateTemplateTaskRequest struct {
-	Blocking *bool                         `json:"blocking,omitempty"`
-	Config   TaskConfig                    `json:"config"`
-	Name     string                        `json:"name"`
-	Type     CreateTemplateTaskRequestType `json:"type"`
+	Blocking *bool      `json:"blocking,omitempty"`
+	Config   TaskConfig `json:"config"`
+	Name     string     `json:"name"`
+
+	// ScheduleEnabled Enable periodic execution of this task
+	ScheduleEnabled *bool `json:"schedule_enabled,omitempty"`
+
+	// ScheduleInterval Interval between executions in Go duration format (e.g., "5m", "1h", "30s"). Required if schedule_enabled is true.
+	ScheduleInterval *string                       `json:"schedule_interval"`
+	Type             CreateTemplateTaskRequestType `json:"type"`
 }
 
 // CreateTemplateTaskRequestType defines model for CreateTemplateTaskRequest.Type.
@@ -227,8 +239,14 @@ type Task struct {
 	Id        openapi_types.UUID `json:"id"`
 	Name      string             `json:"name"`
 	Order     int                `json:"order"`
-	Type      TaskType           `json:"type"`
-	UpdatedAt time.Time          `json:"updated_at"`
+
+	// ScheduleEnabled Enable periodic execution of this task
+	ScheduleEnabled bool `json:"schedule_enabled"`
+
+	// ScheduleInterval Interval between executions in Go duration format (e.g., "5m", "1h", "30s"). Required if schedule_enabled is true.
+	ScheduleInterval *string   `json:"schedule_interval"`
+	Type             TaskType  `json:"type"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // TaskType defines model for Task.Type.
@@ -268,15 +286,21 @@ type Template struct {
 
 // TemplateTask defines model for TemplateTask.
 type TemplateTask struct {
-	Blocking   *bool              `json:"blocking,omitempty"`
-	Config     TaskConfig         `json:"config"`
-	CreatedAt  time.Time          `json:"created_at"`
-	Id         openapi_types.UUID `json:"id"`
-	Name       string             `json:"name"`
-	Order      int                `json:"order"`
-	TemplateId openapi_types.UUID `json:"template_id"`
-	Type       TemplateTaskType   `json:"type"`
-	UpdatedAt  time.Time          `json:"updated_at"`
+	Blocking  *bool              `json:"blocking,omitempty"`
+	Config    TaskConfig         `json:"config"`
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+	Name      string             `json:"name"`
+	Order     int                `json:"order"`
+
+	// ScheduleEnabled Enable periodic execution of this task
+	ScheduleEnabled bool `json:"schedule_enabled"`
+
+	// ScheduleInterval Interval between executions in Go duration format (e.g., "5m", "1h", "30s"). Required if schedule_enabled is true.
+	ScheduleInterval *string            `json:"schedule_interval"`
+	TemplateId       openapi_types.UUID `json:"template_id"`
+	Type             TemplateTaskType   `json:"type"`
+	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
 // TemplateTaskType defines model for TemplateTask.Type.
@@ -284,10 +308,16 @@ type TemplateTaskType string
 
 // UpdateTaskRequest defines model for UpdateTaskRequest.
 type UpdateTaskRequest struct {
-	Blocking *bool                  `json:"blocking,omitempty"`
-	Config   *TaskConfig            `json:"config,omitempty"`
-	Name     *string                `json:"name,omitempty"`
-	Type     *UpdateTaskRequestType `json:"type,omitempty"`
+	Blocking *bool       `json:"blocking,omitempty"`
+	Config   *TaskConfig `json:"config,omitempty"`
+	Name     *string     `json:"name,omitempty"`
+
+	// ScheduleEnabled Enable periodic execution of this task
+	ScheduleEnabled *bool `json:"schedule_enabled,omitempty"`
+
+	// ScheduleInterval Interval between executions in Go duration format (e.g., "5m", "1h", "30s"). Required if schedule_enabled is true.
+	ScheduleInterval *string                `json:"schedule_interval"`
+	Type             *UpdateTaskRequestType `json:"type,omitempty"`
 }
 
 // UpdateTaskRequestType defines model for UpdateTaskRequest.Type.
@@ -301,10 +331,16 @@ type UpdateTemplateRequest struct {
 
 // UpdateTemplateTaskRequest defines model for UpdateTemplateTaskRequest.
 type UpdateTemplateTaskRequest struct {
-	Blocking *bool                          `json:"blocking,omitempty"`
-	Config   *TaskConfig                    `json:"config,omitempty"`
-	Name     *string                        `json:"name,omitempty"`
-	Type     *UpdateTemplateTaskRequestType `json:"type,omitempty"`
+	Blocking *bool       `json:"blocking,omitempty"`
+	Config   *TaskConfig `json:"config,omitempty"`
+	Name     *string     `json:"name,omitempty"`
+
+	// ScheduleEnabled Enable periodic execution of this task
+	ScheduleEnabled *bool `json:"schedule_enabled,omitempty"`
+
+	// ScheduleInterval Interval between executions in Go duration format (e.g., "5m", "1h", "30s"). Required if schedule_enabled is true.
+	ScheduleInterval *string                        `json:"schedule_interval"`
+	Type             *UpdateTemplateTaskRequestType `json:"type,omitempty"`
 }
 
 // UpdateTemplateTaskRequestType defines model for UpdateTemplateTaskRequest.Type.
@@ -1870,50 +1906,52 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"/T8AAP//S8asRkdaAAA=",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

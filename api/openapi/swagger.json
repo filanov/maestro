@@ -1499,6 +1499,16 @@
           "config": {
             "$ref": "#/components/schemas/TaskConfig"
           },
+          "schedule_enabled": {
+            "type": "boolean",
+            "description": "Enable periodic execution of this task"
+          },
+          "schedule_interval": {
+            "type": "string",
+            "nullable": true,
+            "description": "Interval between executions in Go duration format (e.g., \"5m\", \"1h\", \"30s\"). Required if schedule_enabled is true.",
+            "example": "5m"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -1519,6 +1529,7 @@
           "name",
           "type",
           "order",
+          "schedule_enabled",
           "blocking",
           "config",
           "created_at",
@@ -1565,6 +1576,17 @@
           },
           "config": {
             "$ref": "#/components/schemas/TaskConfig"
+          },
+          "schedule_enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable periodic execution of this task"
+          },
+          "schedule_interval": {
+            "type": "string",
+            "nullable": true,
+            "description": "Interval between executions in Go duration format (e.g., \"5m\", \"1h\", \"30s\"). Required if schedule_enabled is true.",
+            "example": "5m"
           }
         },
         "required": [
@@ -1592,6 +1614,16 @@
           },
           "config": {
             "$ref": "#/components/schemas/TaskConfig"
+          },
+          "schedule_enabled": {
+            "type": "boolean",
+            "description": "Enable periodic execution of this task"
+          },
+          "schedule_interval": {
+            "type": "string",
+            "nullable": true,
+            "description": "Interval between executions in Go duration format (e.g., \"5m\", \"1h\", \"30s\"). Required if schedule_enabled is true.",
+            "example": "5m"
           }
         }
       },
@@ -1809,6 +1841,16 @@
           "config": {
             "$ref": "#/components/schemas/TaskConfig"
           },
+          "schedule_enabled": {
+            "type": "boolean",
+            "description": "Enable periodic execution of this task"
+          },
+          "schedule_interval": {
+            "type": "string",
+            "nullable": true,
+            "description": "Interval between executions in Go duration format (e.g., \"5m\", \"1h\", \"30s\"). Required if schedule_enabled is true.",
+            "example": "5m"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -1825,6 +1867,7 @@
           "type",
           "order",
           "config",
+          "schedule_enabled",
           "created_at",
           "updated_at"
         ]
@@ -1873,6 +1916,17 @@
           },
           "config": {
             "$ref": "#/components/schemas/TaskConfig"
+          },
+          "schedule_enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable periodic execution of this task"
+          },
+          "schedule_interval": {
+            "type": "string",
+            "nullable": true,
+            "description": "Interval between executions in Go duration format (e.g., \"5m\", \"1h\", \"30s\"). Required if schedule_enabled is true.",
+            "example": "5m"
           }
         },
         "required": [
@@ -1899,6 +1953,16 @@
           },
           "config": {
             "$ref": "#/components/schemas/TaskConfig"
+          },
+          "schedule_enabled": {
+            "type": "boolean",
+            "description": "Enable periodic execution of this task"
+          },
+          "schedule_interval": {
+            "type": "string",
+            "nullable": true,
+            "description": "Interval between executions in Go duration format (e.g., \"5m\", \"1h\", \"30s\"). Required if schedule_enabled is true.",
+            "example": "5m"
           }
         }
       },

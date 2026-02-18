@@ -827,6 +827,118 @@ var _ = Describe("Postgres DB", func() {
 			Expect(clusterTasks[1].Config.WorkingDir).To(Equal(""))
 		})
 	})
+
+	Describe("Schema Parity Tests", func() {
+		It("should have matching column definitions between tasks and template_tasks", func() {
+			conn, err := sql.Open("postgres", dbURL)
+			Expect(err).NotTo(HaveOccurred())
+			defer conn.Close()
+
+			tasksColumns := `
+				SELECT column_name, data_type, is_nullable
+				FROM information_schema.columns
+				WHERE table_name = 'tasks'
+				AND column_name NOT IN ('id', 'cluster_id', 'deleted_at', 'created_at', 'updated_at')
+				ORDER BY column_name
+			`
+
+			templateTasksColumns := `
+				SELECT column_name, data_type, is_nullable
+				FROM information_schema.columns
+				WHERE table_name = 'template_tasks'
+				AND column_name NOT IN ('id', 'template_id', 'created_at', 'updated_at')
+				ORDER BY column_name
+			`
+
+			tasksRows, err := conn.Query(tasksColumns)
+			Expect(err).NotTo(HaveOccurred())
+			defer tasksRows.Close()
+
+			var tasksCols []string
+			for tasksRows.Next() {
+				var colName, dataType, isNullable string
+				Expect(tasksRows.Scan(&colName, &dataType, &isNullable)).To(Succeed())
+				tasksCols = append(tasksCols, colName+":"+dataType+":"+isNullable)
+			}
+
+			templateTasksRows, err := conn.Query(templateTasksColumns)
+			Expect(err).NotTo(HaveOccurred())
+			defer templateTasksRows.Close()
+
+			var templateTasksCols []string
+			for templateTasksRows.Next() {
+				var colName, dataType, isNullable string
+				Expect(templateTasksRows.Scan(&colName, &dataType, &isNullable)).To(Succeed())
+				templateTasksCols = append(templateTasksCols, colName+":"+dataType+":"+isNullable)
+			}
+
+			Expect(tasksCols).To(Equal(templateTasksCols),
+				"tasks and template_tasks must have matching columns (excluding id and foreign key fields)")
+		})
+
+		It("should preserve all fields during export and import including schedules", func() {
+			cluster1 := &models.Cluster{Name: "Source Cluster"}
+			Expect(database.CreateCluster(ctx, cluster1)).To(Succeed())
+
+			cluster2 := &models.Cluster{Name: "Destination Cluster"}
+			Expect(database.CreateCluster(ctx, cluster2)).To(Succeed())
+
+			scheduleInterval := 5 * time.Minute
+			task := &models.Task{
+				ClusterID: cluster1.ID,
+				Name:      "Full Featured Task",
+				Type:      models.TaskTypeBash,
+				Order:     1,
+				Blocking:  true,
+				Config: models.TaskConfig{
+					Command:    "echo 'hello'",
+					Timeout:    120 * time.Second,
+					WorkingDir: "/app",
+				},
+				ScheduleEnabled:  true,
+				ScheduleInterval: scheduleInterval,
+			}
+			Expect(database.CreateTask(ctx, task)).To(Succeed())
+
+			template := &models.Template{
+				Name:        "Full Feature Template",
+				Description: "Testing all fields",
+			}
+			err := database.ExportClusterToTemplate(ctx, cluster1.ID, template, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			templateTasks, err := database.GetTemplateTasksForTemplate(ctx, template.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(templateTasks).To(HaveLen(1))
+
+			tt := templateTasks[0]
+			Expect(tt.Name).To(Equal("Full Featured Task"))
+			Expect(tt.Type).To(Equal(models.TaskTypeBash))
+			Expect(tt.Blocking).To(BeTrue())
+			Expect(tt.Config.Command).To(Equal("echo 'hello'"))
+			Expect(tt.Config.Timeout).To(Equal(120 * time.Second))
+			Expect(tt.Config.WorkingDir).To(Equal("/app"))
+			Expect(tt.ScheduleEnabled).To(BeTrue())
+			Expect(tt.ScheduleInterval).To(Equal(scheduleInterval))
+
+			err = database.ImportTemplateToCluster(ctx, cluster2.ID, template.ID)
+			Expect(err).NotTo(HaveOccurred())
+
+			cluster2Tasks, err := database.GetTasksForCluster(ctx, cluster2.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cluster2Tasks).To(HaveLen(1))
+
+			imported := cluster2Tasks[0]
+			Expect(imported.Name).To(Equal("Full Featured Task"))
+			Expect(imported.Type).To(Equal(models.TaskTypeBash))
+			Expect(imported.Blocking).To(BeTrue())
+			Expect(imported.Config.Command).To(Equal("echo 'hello'"))
+			Expect(imported.Config.Timeout).To(Equal(120 * time.Second))
+			Expect(imported.Config.WorkingDir).To(Equal("/app"))
+			Expect(imported.ScheduleEnabled).To(BeTrue())
+			Expect(imported.ScheduleInterval).To(Equal(scheduleInterval))
+		})
+	})
 })
 
 func cleanDatabase(dbURL string) {

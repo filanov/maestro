@@ -287,6 +287,65 @@ migrations/                - Database migrations
 - `UNIQUE(cluster_id, hostname)` on agents - one agent per hostname per cluster
 - `UNIQUE(agent_id, task_id)` on executions - prevents duplicate execution
 
+### Task and TemplateTask Parity
+
+**CRITICAL REQUIREMENT**: Tasks and TemplateTasks must maintain complete field parity. Templates are used to create reusable task definitions that can be imported into clusters, so they must support all the same features.
+
+**When adding a new field or feature to tasks, you MUST update both entities:**
+
+1. **Database Schema** (`migrations/`):
+   - Add columns to BOTH `tasks` and `template_tasks` tables
+   - Ensure column names, types, and constraints match
+
+2. **Models** (`internal/models/models.go`):
+   - Update both `Task` and `TemplateTask` structs
+   - Keep field names and types identical (except foreign keys: `ClusterID` vs `TemplateID`)
+
+3. **Database Interface** (`internal/db/db.go`):
+   - Update both `TaskUpdate` and `TemplateTaskUpdate` structs
+
+4. **PostgreSQL Implementation** (`internal/db/postgres/postgres.go`):
+   - Update ALL task-related functions for BOTH entities:
+     - `CreateTask` and `CreateTemplateTask`
+     - `GetTask` and `GetTemplateTask`
+     - `UpdateTask` and `UpdateTemplateTask`
+     - `ListTasks` and `ListTemplateTasks`
+     - `GetTasksForCluster` and `GetTemplateTasksForTemplate`
+   - **CRITICAL**: Update `ImportTemplateToCluster` and `ExportClusterToTemplate` to copy the new field
+
+5. **REST API** (`internal/api/rest/server.go`):
+   - Update handlers for both endpoints:
+     - Task CRUD handlers
+     - TemplateTask CRUD handlers
+   - Ensure validation and error handling are consistent
+
+6. **OpenAPI Schemas** (`api/openapi/swagger.json`):
+   - Update ALL schemas for both entities:
+     - `Task` and `TemplateTask`
+     - `CreateTaskRequest` and `CreateTemplateTaskRequest`
+     - `UpdateTaskRequest` and `UpdateTemplateTaskRequest`
+   - Run `make generate-api` after changes
+
+7. **Conversions** (`internal/api/rest/conversions.go`):
+   - Update `modelToOpenAPITask` and `modelToOpenAPITemplateTask`
+   - Update `modelsToOpenAPITasks` and `modelsToOpenAPITemplateTasks`
+
+8. **Tests**:
+   - Add tests that verify schema parity (see `internal/db/postgres/postgres_integration_test.go`)
+   - Add import/export tests that verify ALL fields are preserved
+   - Update existing tests if behavior changes
+
+**Checklist for new task features**:
+- [ ] Migration for both `tasks` and `template_tasks`
+- [ ] Models updated: `Task` and `TemplateTask`
+- [ ] DB interface updated: `TaskUpdate` and `TemplateTaskUpdate`
+- [ ] All CRUD functions in `postgres.go` for both entities
+- [ ] Import/Export functions updated to copy new field
+- [ ] REST API handlers for both endpoints
+- [ ] OpenAPI schemas for both entities + regenerate code
+- [ ] Conversion functions for both entities
+- [ ] Tests verify parity and import/export
+
 ### Technology Stack
 
 - Go 1.25.4

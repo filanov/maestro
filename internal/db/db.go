@@ -81,10 +81,12 @@ type AgentUpdate struct {
 }
 
 type TaskUpdate struct {
-	Name     *string
-	Type     *models.TaskType
-	Blocking *bool
-	Config   *models.TaskConfig
+	Name             *string
+	Type             *models.TaskType
+	Blocking         *bool
+	Config           *models.TaskConfig
+	ScheduleEnabled  *bool
+	ScheduleInterval *time.Duration
 }
 
 type ExecutionFilters struct {
@@ -100,8 +102,10 @@ type TemplateUpdate struct {
 }
 
 type TemplateTaskUpdate struct {
-	Name     *string
-	Type     *models.TaskType
-	Blocking *bool
-	Config   *models.TaskConfig
+	Name             *string
+	Type             *models.TaskType
+	Blocking         *bool
+	Config           *models.TaskConfig
+	ScheduleEnabled  *bool
+	ScheduleInterval *time.Duration
 }

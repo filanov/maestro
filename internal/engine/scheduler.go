@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"time"
 
 	"github.com/filanov/maestro/internal/db"
 	"github.com/filanov/maestro/internal/models"
@@ -42,6 +43,29 @@ func (s *Scheduler) GetTasksForAgent(ctx context.Context, agentID string) ([]*mo
 	for _, task := range tasks {
 		exec, exists := executionMap[task.ID]
 
+		// Handle scheduled tasks (periodic execution)
+		if task.ScheduleEnabled {
+			if !exists {
+				// First run - include it
+				pendingTasks = append(pendingTasks, task)
+				continue
+			}
+
+			// Check if task is currently running
+			if exec.Status == models.ExecutionStatusRunning {
+				continue
+			}
+
+			// Check if enough time has elapsed since last execution
+			elapsed := time.Since(exec.StartedAt)
+			if elapsed >= task.ScheduleInterval {
+				// Time to re-run
+				pendingTasks = append(pendingTasks, task)
+			}
+			continue
+		}
+
+		// Handle regular (non-scheduled) tasks
 		if exists {
 			switch exec.Status {
 			case models.ExecutionStatusSuccess:

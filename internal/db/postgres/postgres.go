@@ -272,9 +272,15 @@ func (d *DB) CreateTask(ctx context.Context, task *models.Task) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
+	var scheduleInterval *string
+	if task.ScheduleEnabled && task.ScheduleInterval > 0 {
+		interval := task.ScheduleInterval.String()
+		scheduleInterval = &interval
+	}
+
 	query := `
-		INSERT INTO tasks (id, cluster_id, name, type, "order", blocking, config, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO tasks (id, cluster_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 	task.ID = uuid.New().String()
 	task.Order = maxOrder + 1
@@ -283,7 +289,7 @@ func (d *DB) CreateTask(ctx context.Context, task *models.Task) error {
 
 	_, err = d.conn.ExecContext(ctx, query,
 		task.ID, task.ClusterID, task.Name, task.Type, task.Order,
-		task.Blocking, configJSON, task.CreatedAt, task.UpdatedAt,
+		task.Blocking, configJSON, task.ScheduleEnabled, scheduleInterval, task.CreatedAt, task.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("create task: %w", err)
@@ -293,15 +299,16 @@ func (d *DB) CreateTask(ctx context.Context, task *models.Task) error {
 
 func (d *DB) GetTask(ctx context.Context, id string) (*models.Task, error) {
 	query := `
-		SELECT id, cluster_id, name, type, "order", blocking, config, created_at, updated_at, deleted_at
+		SELECT id, cluster_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at, deleted_at
 		FROM tasks
 		WHERE id = $1
 	`
 	task := &models.Task{}
 	var configJSON []byte
+	var scheduleInterval sql.NullString
 	err := d.conn.QueryRowContext(ctx, query, id).Scan(
 		&task.ID, &task.ClusterID, &task.Name, &task.Type, &task.Order,
-		&task.Blocking, &configJSON, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt,
+		&task.Blocking, &configJSON, &task.ScheduleEnabled, &scheduleInterval, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, db.ErrNotFound
@@ -313,6 +320,15 @@ func (d *DB) GetTask(ctx context.Context, id string) (*models.Task, error) {
 	if err := json.Unmarshal(configJSON, &task.Config); err != nil {
 		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
+
+	if scheduleInterval.Valid {
+		duration, err := time.ParseDuration(scheduleInterval.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse schedule interval: %w", err)
+		}
+		task.ScheduleInterval = duration
+	}
+
 	return task, nil
 }
 
@@ -334,6 +350,12 @@ func (d *DB) UpdateTask(ctx context.Context, id string, update *db.TaskUpdate) e
 	if update.Config != nil {
 		task.Config = *update.Config
 	}
+	if update.ScheduleEnabled != nil {
+		task.ScheduleEnabled = *update.ScheduleEnabled
+	}
+	if update.ScheduleInterval != nil {
+		task.ScheduleInterval = *update.ScheduleInterval
+	}
 	task.UpdatedAt = time.Now()
 
 	configJSON, err := json.Marshal(task.Config)
@@ -341,12 +363,18 @@ func (d *DB) UpdateTask(ctx context.Context, id string, update *db.TaskUpdate) e
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
+	var scheduleInterval *string
+	if task.ScheduleEnabled && task.ScheduleInterval > 0 {
+		interval := task.ScheduleInterval.String()
+		scheduleInterval = &interval
+	}
+
 	query := `
 		UPDATE tasks
-		SET name = $2, type = $3, blocking = $4, config = $5, updated_at = $6
+		SET name = $2, type = $3, blocking = $4, config = $5, schedule_enabled = $6, schedule_interval = $7, updated_at = $8
 		WHERE id = $1
 	`
-	_, err = d.conn.ExecContext(ctx, query, id, task.Name, task.Type, task.Blocking, configJSON, task.UpdatedAt)
+	_, err = d.conn.ExecContext(ctx, query, id, task.Name, task.Type, task.Blocking, configJSON, task.ScheduleEnabled, scheduleInterval, task.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)
 	}
@@ -433,7 +461,7 @@ func (d *DB) ListTasks(ctx context.Context, clusterID string, includeDeleted boo
 	}
 
 	query := `
-		SELECT id, cluster_id, name, type, "order", blocking, config, created_at, updated_at, deleted_at
+		SELECT id, cluster_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at, deleted_at
 		FROM tasks
 		WHERE cluster_id = $1
 	`
@@ -452,12 +480,20 @@ func (d *DB) ListTasks(ctx context.Context, clusterID string, includeDeleted boo
 	for rows.Next() {
 		task := &models.Task{}
 		var configJSON []byte
+		var scheduleInterval sql.NullString
 		if err := rows.Scan(&task.ID, &task.ClusterID, &task.Name, &task.Type, &task.Order,
-			&task.Blocking, &configJSON, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt); err != nil {
+			&task.Blocking, &configJSON, &task.ScheduleEnabled, &scheduleInterval, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt); err != nil {
 			return nil, 0, fmt.Errorf("scan task: %w", err)
 		}
 		if err := json.Unmarshal(configJSON, &task.Config); err != nil {
 			return nil, 0, fmt.Errorf("unmarshal config: %w", err)
+		}
+		if scheduleInterval.Valid {
+			duration, err := time.ParseDuration(scheduleInterval.String)
+			if err != nil {
+				return nil, 0, fmt.Errorf("parse schedule interval: %w", err)
+			}
+			task.ScheduleInterval = duration
 		}
 		tasks = append(tasks, task)
 	}
@@ -466,7 +502,7 @@ func (d *DB) ListTasks(ctx context.Context, clusterID string, includeDeleted boo
 
 func (d *DB) GetTasksForCluster(ctx context.Context, clusterID string) ([]*models.Task, error) {
 	query := `
-		SELECT id, cluster_id, name, type, "order", blocking, config, created_at, updated_at, deleted_at
+		SELECT id, cluster_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at, deleted_at
 		FROM tasks
 		WHERE cluster_id = $1 AND deleted_at IS NULL
 		ORDER BY "order" ASC
@@ -481,12 +517,20 @@ func (d *DB) GetTasksForCluster(ctx context.Context, clusterID string) ([]*model
 	for rows.Next() {
 		task := &models.Task{}
 		var configJSON []byte
+		var scheduleInterval sql.NullString
 		if err := rows.Scan(&task.ID, &task.ClusterID, &task.Name, &task.Type, &task.Order,
-			&task.Blocking, &configJSON, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt); err != nil {
+			&task.Blocking, &configJSON, &task.ScheduleEnabled, &scheduleInterval, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
 		if err := json.Unmarshal(configJSON, &task.Config); err != nil {
 			return nil, fmt.Errorf("unmarshal config: %w", err)
+		}
+		if scheduleInterval.Valid {
+			duration, err := time.ParseDuration(scheduleInterval.String)
+			if err != nil {
+				return nil, fmt.Errorf("parse schedule interval: %w", err)
+			}
+			task.ScheduleInterval = duration
 		}
 		tasks = append(tasks, task)
 	}
@@ -539,22 +583,23 @@ func (d *DB) CreateExecution(ctx context.Context, execution *models.TaskExecutio
 }
 
 func (d *DB) UpsertExecution(ctx context.Context, execution *models.TaskExecution) error {
+	if execution.ID == "" {
+		execution.ID = uuid.New().String()
+	}
 	query := `
-		INSERT INTO task_executions (id, task_id, agent_id, cluster_id, status, output, exit_code, started_at, completed_at, error)
+		INSERT INTO task_executions (id, agent_id, task_id, cluster_id, status, output, exit_code, started_at, completed_at, error)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (agent_id, task_id)
 		DO UPDATE SET
 			status = EXCLUDED.status,
 			output = EXCLUDED.output,
 			exit_code = EXCLUDED.exit_code,
+			started_at = EXCLUDED.started_at,
 			completed_at = EXCLUDED.completed_at,
 			error = EXCLUDED.error
 	`
-	if execution.ID == "" {
-		execution.ID = uuid.New().String()
-	}
 	_, err := d.conn.ExecContext(ctx, query,
-		execution.ID, execution.TaskID, execution.AgentID, execution.ClusterID, execution.Status,
+		execution.ID, execution.AgentID, execution.TaskID, execution.ClusterID, execution.Status,
 		execution.Output, execution.ExitCode, execution.StartedAt, execution.CompletedAt, execution.Error,
 	)
 	if err != nil {
@@ -565,14 +610,19 @@ func (d *DB) UpsertExecution(ctx context.Context, execution *models.TaskExecutio
 
 func (d *DB) GetExecution(ctx context.Context, id string) (*models.TaskExecution, error) {
 	query := `
-		SELECT id, task_id, agent_id, cluster_id, status, output, exit_code, started_at, completed_at, error
+		SELECT id, agent_id, task_id, cluster_id, status, output, exit_code, started_at, completed_at, error
 		FROM task_executions
 		WHERE id = $1
 	`
 	execution := &models.TaskExecution{}
+	var exitCode sql.NullInt32
+	var output sql.NullString
+	var completedAt sql.NullTime
+	var errorMsg sql.NullString
+
 	err := d.conn.QueryRowContext(ctx, query, id).Scan(
-		&execution.ID, &execution.TaskID, &execution.AgentID, &execution.ClusterID, &execution.Status,
-		&execution.Output, &execution.ExitCode, &execution.StartedAt, &execution.CompletedAt, &execution.Error,
+		&execution.ID, &execution.AgentID, &execution.TaskID, &execution.ClusterID, &execution.Status,
+		&output, &exitCode, &execution.StartedAt, &completedAt, &errorMsg,
 	)
 	if err == sql.ErrNoRows {
 		return nil, db.ErrNotFound
@@ -580,13 +630,28 @@ func (d *DB) GetExecution(ctx context.Context, id string) (*models.TaskExecution
 	if err != nil {
 		return nil, fmt.Errorf("get execution: %w", err)
 	}
+
+	if output.Valid {
+		execution.Output = output.String
+	}
+	if exitCode.Valid {
+		val := int(exitCode.Int32)
+		execution.ExitCode = &val
+	}
+	if completedAt.Valid {
+		execution.CompletedAt = &completedAt.Time
+	}
+	if errorMsg.Valid {
+		execution.Error = errorMsg.String
+	}
+
 	return execution, nil
 }
 
 func (d *DB) ListExecutions(ctx context.Context, filters db.ExecutionFilters, limit, offset int) ([]*models.TaskExecution, int, error) {
 	countQuery := `SELECT COUNT(*) FROM task_executions WHERE 1=1`
 	query := `
-		SELECT id, task_id, agent_id, cluster_id, status, output, exit_code, started_at, completed_at, error
+		SELECT id, agent_id, task_id, cluster_id, status, output, exit_code, started_at, completed_at, error
 		FROM task_executions
 		WHERE 1=1
 	`
@@ -635,10 +700,25 @@ func (d *DB) ListExecutions(ctx context.Context, filters db.ExecutionFilters, li
 	executions := make([]*models.TaskExecution, 0)
 	for rows.Next() {
 		execution := &models.TaskExecution{}
-		if err := rows.Scan(&execution.ID, &execution.TaskID, &execution.AgentID, &execution.ClusterID, &execution.Status,
-			&execution.Output, &execution.ExitCode, &execution.StartedAt, &execution.CompletedAt, &execution.Error); err != nil {
+		var output, errorStr sql.NullString
+		var exitCode sql.NullInt64
+		var completedAt sql.NullTime
+
+		if err := rows.Scan(&execution.ID, &execution.AgentID, &execution.TaskID, &execution.ClusterID, &execution.Status,
+			&output, &exitCode, &execution.StartedAt, &completedAt, &errorStr); err != nil {
 			return nil, 0, fmt.Errorf("scan execution: %w", err)
 		}
+
+		execution.Output = output.String
+		if exitCode.Valid {
+			exitCodeInt := int(exitCode.Int64)
+			execution.ExitCode = &exitCodeInt
+		}
+		if completedAt.Valid {
+			execution.CompletedAt = &completedAt.Time
+		}
+		execution.Error = errorStr.String
+
 		executions = append(executions, execution)
 	}
 	return executions, total, nil
@@ -646,7 +726,7 @@ func (d *DB) ListExecutions(ctx context.Context, filters db.ExecutionFilters, li
 
 func (d *DB) GetExecutionsForAgent(ctx context.Context, agentID string) ([]*models.TaskExecution, error) {
 	query := `
-		SELECT id, task_id, agent_id, cluster_id, status, output, exit_code, started_at, completed_at, error
+		SELECT id, agent_id, task_id, cluster_id, status, output, exit_code, started_at, completed_at, error
 		FROM task_executions
 		WHERE agent_id = $1
 	`
@@ -659,10 +739,25 @@ func (d *DB) GetExecutionsForAgent(ctx context.Context, agentID string) ([]*mode
 	executions := make([]*models.TaskExecution, 0)
 	for rows.Next() {
 		execution := &models.TaskExecution{}
-		if err := rows.Scan(&execution.ID, &execution.TaskID, &execution.AgentID, &execution.ClusterID, &execution.Status,
-			&execution.Output, &execution.ExitCode, &execution.StartedAt, &execution.CompletedAt, &execution.Error); err != nil {
+		var output, errorStr sql.NullString
+		var exitCode sql.NullInt64
+		var completedAt sql.NullTime
+
+		if err := rows.Scan(&execution.ID, &execution.AgentID, &execution.TaskID, &execution.ClusterID, &execution.Status,
+			&output, &exitCode, &execution.StartedAt, &completedAt, &errorStr); err != nil {
 			return nil, fmt.Errorf("scan execution: %w", err)
 		}
+
+		execution.Output = output.String
+		if exitCode.Valid {
+			exitCodeInt := int(exitCode.Int64)
+			execution.ExitCode = &exitCodeInt
+		}
+		if completedAt.Valid {
+			execution.CompletedAt = &completedAt.Time
+		}
+		execution.Error = errorStr.String
+
 		executions = append(executions, execution)
 	}
 	return executions, nil
@@ -977,16 +1072,22 @@ func (d *DB) CreateTemplateTask(ctx context.Context, task *models.TemplateTask) 
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
+	var scheduleInterval *string
+	if task.ScheduleEnabled && task.ScheduleInterval > 0 {
+		interval := task.ScheduleInterval.String()
+		scheduleInterval = &interval
+	}
+
 	query := `
-		INSERT INTO template_tasks (id, template_id, name, type, "order", blocking, config, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO template_tasks (id, template_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 	task.ID = uuid.New().String()
 	task.CreatedAt = time.Now()
 	task.UpdatedAt = time.Now()
 
 	_, err = d.conn.ExecContext(ctx, query,
-		task.ID, task.TemplateID, task.Name, task.Type, task.Order, task.Blocking, configJSON, task.CreatedAt, task.UpdatedAt)
+		task.ID, task.TemplateID, task.Name, task.Type, task.Order, task.Blocking, configJSON, task.ScheduleEnabled, scheduleInterval, task.CreatedAt, task.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create template task: %w", err)
 	}
@@ -995,14 +1096,15 @@ func (d *DB) CreateTemplateTask(ctx context.Context, task *models.TemplateTask) 
 
 func (d *DB) GetTemplateTask(ctx context.Context, id string) (*models.TemplateTask, error) {
 	query := `
-		SELECT id, template_id, name, type, "order", blocking, config, created_at, updated_at
+		SELECT id, template_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at
 		FROM template_tasks
 		WHERE id = $1
 	`
 	task := &models.TemplateTask{}
 	var configJSON []byte
+	var scheduleInterval sql.NullString
 	err := d.conn.QueryRowContext(ctx, query, id).Scan(
-		&task.ID, &task.TemplateID, &task.Name, &task.Type, &task.Order, &task.Blocking, &configJSON, &task.CreatedAt, &task.UpdatedAt,
+		&task.ID, &task.TemplateID, &task.Name, &task.Type, &task.Order, &task.Blocking, &configJSON, &task.ScheduleEnabled, &scheduleInterval, &task.CreatedAt, &task.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, db.ErrNotFound
@@ -1012,6 +1114,13 @@ func (d *DB) GetTemplateTask(ctx context.Context, id string) (*models.TemplateTa
 	}
 	if err := json.Unmarshal(configJSON, &task.Config); err != nil {
 		return nil, fmt.Errorf("unmarshal config: %w", err)
+	}
+	if scheduleInterval.Valid {
+		duration, err := time.ParseDuration(scheduleInterval.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse schedule interval: %w", err)
+		}
+		task.ScheduleInterval = duration
 	}
 	return task, nil
 }
@@ -1034,6 +1143,12 @@ func (d *DB) UpdateTemplateTask(ctx context.Context, id string, update *db.Templ
 	if update.Config != nil {
 		task.Config = *update.Config
 	}
+	if update.ScheduleEnabled != nil {
+		task.ScheduleEnabled = *update.ScheduleEnabled
+	}
+	if update.ScheduleInterval != nil {
+		task.ScheduleInterval = *update.ScheduleInterval
+	}
 	task.UpdatedAt = time.Now()
 
 	configJSON, err := json.Marshal(task.Config)
@@ -1041,12 +1156,18 @@ func (d *DB) UpdateTemplateTask(ctx context.Context, id string, update *db.Templ
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
+	var scheduleInterval *string
+	if task.ScheduleEnabled && task.ScheduleInterval > 0 {
+		interval := task.ScheduleInterval.String()
+		scheduleInterval = &interval
+	}
+
 	query := `
 		UPDATE template_tasks
-		SET name = $2, type = $3, blocking = $4, config = $5, updated_at = $6
+		SET name = $2, type = $3, blocking = $4, config = $5, schedule_enabled = $6, schedule_interval = $7, updated_at = $8
 		WHERE id = $1
 	`
-	_, err = d.conn.ExecContext(ctx, query, id, task.Name, task.Type, task.Blocking, configJSON, task.UpdatedAt)
+	_, err = d.conn.ExecContext(ctx, query, id, task.Name, task.Type, task.Blocking, configJSON, task.ScheduleEnabled, scheduleInterval, task.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("update template task: %w", err)
 	}
@@ -1061,7 +1182,7 @@ func (d *DB) ListTemplateTasks(ctx context.Context, templateID string, limit, of
 	}
 
 	query := `
-		SELECT id, template_id, name, type, "order", blocking, config, created_at, updated_at
+		SELECT id, template_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at
 		FROM template_tasks
 		WHERE template_id = $1
 		ORDER BY "order" ASC
@@ -1077,11 +1198,19 @@ func (d *DB) ListTemplateTasks(ctx context.Context, templateID string, limit, of
 	for rows.Next() {
 		task := &models.TemplateTask{}
 		var configJSON []byte
-		if err := rows.Scan(&task.ID, &task.TemplateID, &task.Name, &task.Type, &task.Order, &task.Blocking, &configJSON, &task.CreatedAt, &task.UpdatedAt); err != nil {
+		var scheduleInterval sql.NullString
+		if err := rows.Scan(&task.ID, &task.TemplateID, &task.Name, &task.Type, &task.Order, &task.Blocking, &configJSON, &task.ScheduleEnabled, &scheduleInterval, &task.CreatedAt, &task.UpdatedAt); err != nil {
 			return nil, 0, fmt.Errorf("scan template task: %w", err)
 		}
 		if err := json.Unmarshal(configJSON, &task.Config); err != nil {
 			return nil, 0, fmt.Errorf("unmarshal config: %w", err)
+		}
+		if scheduleInterval.Valid {
+			duration, err := time.ParseDuration(scheduleInterval.String)
+			if err != nil {
+				return nil, 0, fmt.Errorf("parse schedule interval: %w", err)
+			}
+			task.ScheduleInterval = duration
 		}
 		tasks = append(tasks, task)
 	}
@@ -1093,7 +1222,7 @@ func (d *DB) ListTemplateTasks(ctx context.Context, templateID string, limit, of
 
 func (d *DB) GetTemplateTasksForTemplate(ctx context.Context, templateID string) ([]*models.TemplateTask, error) {
 	query := `
-		SELECT id, template_id, name, type, "order", blocking, config, created_at, updated_at
+		SELECT id, template_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at
 		FROM template_tasks
 		WHERE template_id = $1
 		ORDER BY "order" ASC
@@ -1108,11 +1237,19 @@ func (d *DB) GetTemplateTasksForTemplate(ctx context.Context, templateID string)
 	for rows.Next() {
 		task := &models.TemplateTask{}
 		var configJSON []byte
-		if err := rows.Scan(&task.ID, &task.TemplateID, &task.Name, &task.Type, &task.Order, &task.Blocking, &configJSON, &task.CreatedAt, &task.UpdatedAt); err != nil {
+		var scheduleInterval sql.NullString
+		if err := rows.Scan(&task.ID, &task.TemplateID, &task.Name, &task.Type, &task.Order, &task.Blocking, &configJSON, &task.ScheduleEnabled, &scheduleInterval, &task.CreatedAt, &task.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan template task: %w", err)
 		}
 		if err := json.Unmarshal(configJSON, &task.Config); err != nil {
 			return nil, fmt.Errorf("unmarshal config: %w", err)
+		}
+		if scheduleInterval.Valid {
+			duration, err := time.ParseDuration(scheduleInterval.String)
+			if err != nil {
+				return nil, fmt.Errorf("parse schedule interval: %w", err)
+			}
+			task.ScheduleInterval = duration
 		}
 		tasks = append(tasks, task)
 	}
@@ -1189,7 +1326,7 @@ func (d *DB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID 
 	}
 
 	query := `
-		SELECT id, name, type, "order", blocking, config
+		SELECT id, name, type, "order", blocking, config, schedule_enabled, schedule_interval
 		FROM template_tasks
 		WHERE template_id = $1
 		ORDER BY "order" ASC
@@ -1200,11 +1337,13 @@ func (d *DB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID 
 	}
 
 	type templateTaskData struct {
-		name       string
-		taskType   string
-		order      int
-		blocking   bool
-		configJSON []byte
+		name             string
+		taskType         string
+		order            int
+		blocking         bool
+		configJSON       []byte
+		scheduleEnabled  bool
+		scheduleInterval sql.NullString
 	}
 	var templateTasks []templateTaskData
 
@@ -1212,7 +1351,7 @@ func (d *DB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID 
 		var templateTaskID string
 		var ttd templateTaskData
 
-		if err := rows.Scan(&templateTaskID, &ttd.name, &ttd.taskType, &ttd.order, &ttd.blocking, &ttd.configJSON); err != nil {
+		if err := rows.Scan(&templateTaskID, &ttd.name, &ttd.taskType, &ttd.order, &ttd.blocking, &ttd.configJSON, &ttd.scheduleEnabled, &ttd.scheduleInterval); err != nil {
 			rows.Close()
 			return fmt.Errorf("scan template task: %w", err)
 		}
@@ -1225,8 +1364,8 @@ func (d *DB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID 
 	rows.Close()
 
 	insertQuery := `
-		INSERT INTO tasks (id, cluster_id, name, type, "order", blocking, config, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO tasks (id, cluster_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	now := time.Now()
@@ -1234,8 +1373,13 @@ func (d *DB) ImportTemplateToCluster(ctx context.Context, clusterID, templateID 
 		newTaskID := uuid.New().String()
 		newOrder := maxOrder + ttd.order
 
+		var scheduleInterval *string
+		if ttd.scheduleInterval.Valid {
+			scheduleInterval = &ttd.scheduleInterval.String
+		}
+
 		_, err = tx.ExecContext(ctx, insertQuery,
-			newTaskID, clusterID, ttd.name, ttd.taskType, newOrder, ttd.blocking, ttd.configJSON, now, now)
+			newTaskID, clusterID, ttd.name, ttd.taskType, newOrder, ttd.blocking, ttd.configJSON, ttd.scheduleEnabled, scheduleInterval, now, now)
 		if err != nil {
 			return fmt.Errorf("insert task: %w", err)
 		}
@@ -1274,7 +1418,7 @@ func (d *DB) ExportClusterToTemplate(ctx context.Context, clusterID string, temp
 	}
 
 	query := `
-		SELECT id, name, type, "order", blocking, config
+		SELECT id, name, type, "order", blocking, config, schedule_enabled, schedule_interval
 		FROM tasks
 		WHERE cluster_id = $1 AND deleted_at IS NULL`
 
@@ -1293,10 +1437,12 @@ func (d *DB) ExportClusterToTemplate(ctx context.Context, clusterID string, temp
 	}
 
 	type taskData struct {
-		name       string
-		taskType   string
-		blocking   bool
-		configJSON []byte
+		name             string
+		taskType         string
+		blocking         bool
+		configJSON       []byte
+		scheduleEnabled  bool
+		scheduleInterval sql.NullString
 	}
 	var tasks []taskData
 
@@ -1305,7 +1451,7 @@ func (d *DB) ExportClusterToTemplate(ctx context.Context, clusterID string, temp
 		var order int
 		var td taskData
 
-		if err := rows.Scan(&taskID, &td.name, &td.taskType, &order, &td.blocking, &td.configJSON); err != nil {
+		if err := rows.Scan(&taskID, &td.name, &td.taskType, &order, &td.blocking, &td.configJSON, &td.scheduleEnabled, &td.scheduleInterval); err != nil {
 			rows.Close()
 			return fmt.Errorf("scan task: %w", err)
 		}
@@ -1318,8 +1464,8 @@ func (d *DB) ExportClusterToTemplate(ctx context.Context, clusterID string, temp
 	rows.Close()
 
 	insertTaskQuery := `
-		INSERT INTO template_tasks (id, template_id, name, type, "order", blocking, config, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO template_tasks (id, template_id, name, type, "order", blocking, config, schedule_enabled, schedule_interval, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	now := time.Now()
@@ -1327,8 +1473,13 @@ func (d *DB) ExportClusterToTemplate(ctx context.Context, clusterID string, temp
 		newTaskID := uuid.New().String()
 		newOrder := i + 1
 
+		var scheduleInterval *string
+		if td.scheduleInterval.Valid {
+			scheduleInterval = &td.scheduleInterval.String
+		}
+
 		_, err = tx.ExecContext(ctx, insertTaskQuery,
-			newTaskID, template.ID, td.name, td.taskType, newOrder, td.blocking, td.configJSON, now, now)
+			newTaskID, template.ID, td.name, td.taskType, newOrder, td.blocking, td.configJSON, td.scheduleEnabled, scheduleInterval, now, now)
 		if err != nil {
 			return fmt.Errorf("insert template task: %w", err)
 		}

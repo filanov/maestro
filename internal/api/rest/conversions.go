@@ -83,17 +83,25 @@ func modelToOpenAPITask(m *models.Task) openapi.Task {
 		WorkingDir:     ptr(m.Config.WorkingDir),
 	}
 
+	var scheduleInterval *string
+	if m.ScheduleEnabled && m.ScheduleInterval > 0 {
+		interval := m.ScheduleInterval.String()
+		scheduleInterval = &interval
+	}
+
 	return openapi.Task{
-		Id:        stringToUUID(m.ID),
-		ClusterId: stringToUUID(m.ClusterID),
-		Name:      m.Name,
-		Type:      openapi.TaskType(m.Type),
-		Config:    config,
-		Blocking:  m.Blocking,
-		Order:     m.Order,
-		CreatedAt: m.CreatedAt,
-		UpdatedAt: m.UpdatedAt,
-		DeletedAt: m.DeletedAt,
+		Id:               stringToUUID(m.ID),
+		ClusterId:        stringToUUID(m.ClusterID),
+		Name:             m.Name,
+		Type:             openapi.TaskType(m.Type),
+		Config:           config,
+		Blocking:         m.Blocking,
+		Order:            m.Order,
+		ScheduleEnabled:  m.ScheduleEnabled,
+		ScheduleInterval: scheduleInterval,
+		CreatedAt:        m.CreatedAt,
+		UpdatedAt:        m.UpdatedAt,
+		DeletedAt:        m.DeletedAt,
 	}
 }
 
@@ -219,6 +227,12 @@ func modelToOpenAPITemplateTask(m *models.TemplateTask) openapi.TemplateTask {
 		workingDir = &m.Config.WorkingDir
 	}
 
+	var scheduleInterval *string
+	if m.ScheduleEnabled && m.ScheduleInterval > 0 {
+		interval := m.ScheduleInterval.String()
+		scheduleInterval = &interval
+	}
+
 	return openapi.TemplateTask{
 		Id:         stringToUUID(m.ID),
 		TemplateId: stringToUUID(m.TemplateID),
@@ -231,8 +245,10 @@ func modelToOpenAPITemplateTask(m *models.TemplateTask) openapi.TemplateTask {
 			TimeoutSeconds: &timeoutSeconds,
 			WorkingDir:     workingDir,
 		},
-		CreatedAt: m.CreatedAt,
-		UpdatedAt: m.UpdatedAt,
+		ScheduleEnabled:  m.ScheduleEnabled,
+		ScheduleInterval: scheduleInterval,
+		CreatedAt:        m.CreatedAt,
+		UpdatedAt:        m.UpdatedAt,
 	}
 }
 

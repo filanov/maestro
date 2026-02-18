@@ -306,14 +306,31 @@ func (s *Server) CreateTask(w http.ResponseWriter, r *http.Request) {
 		blocking = *req.Blocking
 	}
 
+	scheduleEnabled := false
+	if req.ScheduleEnabled != nil {
+		scheduleEnabled = *req.ScheduleEnabled
+	}
+
+	var scheduleInterval time.Duration
+	if scheduleEnabled && req.ScheduleInterval != nil {
+		duration, err := time.ParseDuration(*req.ScheduleInterval)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid schedule_interval format: %v", err))
+			return
+		}
+		scheduleInterval = duration
+	}
+
 	task := &models.Task{
-		ID:        uuid.New().String(),
-		ClusterID: clusterID,
-		Name:      req.Name,
-		Type:      models.TaskType(req.Type),
-		Order:     nextOrder,
-		Blocking:  blocking,
-		Config:    taskConfigFromOpenAPI(req.Config),
+		ID:               uuid.New().String(),
+		ClusterID:        clusterID,
+		Name:             req.Name,
+		Type:             models.TaskType(req.Type),
+		Order:            nextOrder,
+		Blocking:         blocking,
+		Config:           taskConfigFromOpenAPI(req.Config),
+		ScheduleEnabled:  scheduleEnabled,
+		ScheduleInterval: scheduleInterval,
 	}
 
 	if err := s.db.CreateTask(r.Context(), task); err != nil {
@@ -364,6 +381,19 @@ func (s *Server) UpdateTask(w http.ResponseWriter, r *http.Request, id openapi.I
 	if req.Config != nil {
 		config := taskConfigFromOpenAPI(*req.Config)
 		update.Config = &config
+	}
+
+	if req.ScheduleEnabled != nil {
+		update.ScheduleEnabled = req.ScheduleEnabled
+	}
+
+	if req.ScheduleInterval != nil {
+		duration, err := time.ParseDuration(*req.ScheduleInterval)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid schedule_interval format: %v", err))
+			return
+		}
+		update.ScheduleInterval = &duration
 	}
 
 	if err := s.db.UpdateTask(r.Context(), taskID, update); err == db.ErrNotFound {
@@ -791,6 +821,21 @@ func (s *Server) CreateTemplateTask(w http.ResponseWriter, r *http.Request, id o
 		timeout = time.Duration(*req.Config.TimeoutSeconds) * time.Second
 	}
 
+	scheduleEnabled := false
+	if req.ScheduleEnabled != nil {
+		scheduleEnabled = *req.ScheduleEnabled
+	}
+
+	var scheduleInterval time.Duration
+	if scheduleEnabled && req.ScheduleInterval != nil {
+		duration, err := time.ParseDuration(*req.ScheduleInterval)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid schedule_interval format: %v", err))
+			return
+		}
+		scheduleInterval = duration
+	}
+
 	task := &models.TemplateTask{
 		TemplateID: uuidToString(id),
 		Name:       req.Name,
@@ -802,6 +847,8 @@ func (s *Server) CreateTemplateTask(w http.ResponseWriter, r *http.Request, id o
 			Timeout:    timeout,
 			WorkingDir: stringPtrToString(req.Config.WorkingDir),
 		},
+		ScheduleEnabled:  scheduleEnabled,
+		ScheduleInterval: scheduleInterval,
 	}
 
 	if err := s.db.CreateTemplateTask(r.Context(), task); err != nil {
@@ -844,6 +891,17 @@ func (s *Server) UpdateTemplateTask(w http.ResponseWriter, r *http.Request, id o
 			WorkingDir: stringPtrToString(req.Config.WorkingDir),
 		}
 		update.Config = &config
+	}
+	if req.ScheduleEnabled != nil {
+		update.ScheduleEnabled = req.ScheduleEnabled
+	}
+	if req.ScheduleInterval != nil {
+		duration, err := time.ParseDuration(*req.ScheduleInterval)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid schedule_interval format: %v", err))
+			return
+		}
+		update.ScheduleInterval = &duration
 	}
 
 	if err := s.db.UpdateTemplateTask(r.Context(), uuidToString(id), update); err == db.ErrNotFound {
